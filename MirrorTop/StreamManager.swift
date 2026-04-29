@@ -35,6 +35,13 @@ public final class StreamManager: NSObject, Sendable {
     
     /// Kısayola basıldığında tetiklenen Toggle (Aç/Kapat) mantığı.
     public func toggleCapture(windowInfo: FocusedWindowInfo) async throws {
+        // Güvenlik ağı: Kendi PID'mize ait pencereyi yakalamayı reddet (recursive capture -> crash).
+        let ourPID = ProcessInfo.processInfo.processIdentifier
+        if windowInfo.pid == ourPID {
+            print(">>> [StreamManager] Kendi penceremizi yakalama isteği reddedildi (recursive capture koruması).")
+            return
+        }
+        
         if isCapturing {
             if capturedWindowID == windowInfo.cgWindowID {
                 // Aynı pencereye tıklandıysa veya kısayola basıldıysa kapat.
@@ -101,7 +108,18 @@ public final class StreamManager: NSObject, Sendable {
     
     /// Yayını güvenli bir şekilde durdurur ve paneli kapatarak bellek sızıntılarını önler.
     public func stopCapture() async {
+        // 1) Önce yeniden-başlatma akışının elinden bilgiyi alıyoruz.
+        //    Bu sayede stopCapture sırasında didStopWithError tetiklense bile lastWindowInfo nil olur,
+        //    auto-restart loop'u çalışmaz.
+        self.originalWindowInfo = nil
+        self.capturedWindowID = nil
+        
         if let currentStream = stream {
+            // 2) Output'u kaldırıp yeni karelerin gelmesini durduruyoruz.
+            //    Aksi halde stopCapture await ederken kuyrukta sıkışmış kareler hâlâ
+            //    main thread'e enqueue edilebiliyor ve panel deallocation ile çakışıp crash üretebiliyor.
+            try? currentStream.removeStreamOutput(self, type: .screen)
+            
             do {
                 try await currentStream.stopCapture()
             } catch {
@@ -110,10 +128,53 @@ public final class StreamManager: NSObject, Sendable {
         }
         
         self.stream = nil
-        self.capturedWindowID = nil
-        self.originalWindowInfo = nil
         
         closePanel()
+    }
+    
+    /// Sessiz yeniden başlatma — paneli ve previewView'i KORUR, sadece alttaki SCStream'i yeniden oluşturur.
+    /// macOS bazen 5-6 dakika sonra ScreenCaptureKit yayınını sistem tarafından öldürüyor;
+    /// kullanıcı flicker görmesin diye paneli kapatmadan stream'i yeniden bağlıyoruz.
+    /// Son kare CALayer.contents'te kalır, yeni stream başlayınca render kaldığı yerden devam eder.
+    private func silentRestart(for windowInfo: FocusedWindowInfo) async throws {
+        // Eski stream'i temizle (panel/previewView'e DOKUNMA).
+        if let oldStream = self.stream {
+            try? oldStream.removeStreamOutput(self, type: .screen)
+            try? await oldStream.stopCapture()
+        }
+        self.stream = nil
+        
+        // Pencere hâlâ var mı?
+        let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        guard let scWindow = shareableContent.windows.first(where: { $0.windowID == windowInfo.cgWindowID }) else {
+            print(">>> [StreamManager] Sessiz restart: pencere artık mevcut değil (ID: \(windowInfo.cgWindowID)).")
+            throw NSError(domain: "MirrorTop", code: 404,
+                          userInfo: [NSLocalizedDescriptionKey: "Hedef pencere bulunamadı"])
+        }
+        
+        let filter = SCContentFilter(desktopIndependentWindow: scWindow)
+        let config = SCStreamConfiguration()
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+        config.queueDepth = 5
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.showsCursor = false
+        config.capturesAudio = false
+        if #available(macOS 14.0, *) {
+            config.ignoreShadowsSingleWindow = true
+        }
+        
+        let newStream = SCStream(filter: filter, configuration: config, delegate: self)
+        try newStream.addStreamOutput(self, type: .screen,
+                                      sampleHandlerQueue: DispatchQueue.global(qos: .userInteractive))
+        
+        self.stream = newStream
+        self.capturedWindowID = windowInfo.cgWindowID
+        self.originalWindowInfo = windowInfo
+        // NOT: interactionMode'u SIFIRLAMIYORUZ — kullanıcının seçimi korunur.
+        // NOT: Paneli ve previewView'i tutuyoruz — son kare freeze olarak kalır.
+        
+        try await newStream.startCapture()
+        print(">>> [StreamManager] Sessiz restart başarılı. Panel pozisyonu/boyutu korundu.")
     }
     
     private func setupPanel(for windowInfo: FocusedWindowInfo) {
@@ -165,6 +226,14 @@ extension StreamManager: SCStreamOutput, SCStreamDelegate {
         
         switch type {
         case .screen:
+            // ÖNEMLİ: ScreenCaptureKit kare atladığında (Frame Drop) veya sistem dar boğaza girdiğinde
+            // bize piksel verisi (ImageBuffer) OLMAYAN boş bir CMSampleBuffer gönderir.
+            // Bu boş veriyi AVSampleBufferDisplayLayer'a verirsek VT-DS -12902 BadDataErr ile anında çöker!
+            guard let _ = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                // Bu boş (dropped) bir karedir, yoksay ve atla.
+                return
+            }
+            
             // İşlemleri arka planda yapıp sadece UI güncellemelerini Main Thread'e atıyoruz.
             // Saniyede 60 kez Task oluşturmak bellek sızıntısına (Task exhaustion) neden oluyordu, DispatchQueue daha hafif.
             var newContentRect: CGRect?
@@ -226,39 +295,56 @@ extension StreamManager: SCStreamOutput, SCStreamDelegate {
     
     // Yayın sırasında bir hata oluşursa veya yayın manuel dışı durursa
     nonisolated public func stream(_ stream: SCStream, didStopWithError error: Error) {
+        // `stream` parametresi nonisolated, MainActor'a köprülemek için lokal kopya alıyoruz.
+        let stoppedStream = stream
         Task { @MainActor in
-            print("Yayın hatayla durdu: \(error.localizedDescription)")
-            let lastWindowInfo = self.originalWindowInfo
-            await self.stopCapture()
+            print(">>> [StreamManager] Yayın hatayla durdu: \(error.localizedDescription)")
             
-            // Eğer kullanıcı ekran paylaşımını manuel olarak durdurduysa (Menü çubuğundan)
-            if let scError = error as? SCStreamError, scError.code == .userStopped {
-                print(">>> [StreamManager] Kullanıcı yayını bilerek durdurdu. Otomatik başlatma iptal edildi.")
+            // Eski / zaten değiştirilmiş bir stream'in geç gelen callback'i mi?
+            // (Silent restart sırasında eski stream stopCapture sonrası bu delegate'i tekrar tetikleyebiliyor.)
+            guard stoppedStream === self.stream else {
+                print(">>> [StreamManager] Eski stream'e ait gecikmeli hata callback'i, yoksayılıyor.")
                 return
             }
             
-            // Eğer yayın pencere çok hızlı boyutlandırıldığı için veya masaüstü değiştirildiği için kesildiyse,
-            // arka planda otomatik olarak yeniden başlatmayı dene.
-            if let windowInfo = lastWindowInfo {
-                let now = Date()
-                if now.timeIntervalSince(self.lastRestartTime) < 2.0 {
-                    self.consecutiveRestarts += 1
-                } else {
-                    self.consecutiveRestarts = 1
-                }
-                self.lastRestartTime = now
-                
-                // Eğer sonsuz bir çökme döngüsüne girdiysek durdur.
-                if self.consecutiveRestarts > 3 {
-                    print(">>> [StreamManager] Üst üste 3 kez çökme yaşandı. Yeniden başlatma iptal edildi.")
-                    return
-                }
-                
-                try? await Task.sleep(nanoseconds: 500_000_000) // Yarım saniye bekle
-                print(">>> [StreamManager] Yayın kopması algılandı. Otomatik yeniden başlatma deneniyor (Deneme: \(self.consecutiveRestarts))...")
-                
-                // Pencere başka bir masaüstünde bile olsa doğrudan bağlanmayı dene
-                try? await self.startCapture(for: windowInfo)
+            // Kullanıcı ekran paylaşımını manuel durdurduysa (menü çubuğundan) → tamamen kapat.
+            if let scError = error as? SCStreamError, scError.code == .userStopped {
+                print(">>> [StreamManager] Kullanıcı yayını bilerek durdurdu. Tamamen kapatılıyor.")
+                await self.stopCapture()
+                return
+            }
+            
+            // Bilgi yoksa restart edemeyiz, kapat.
+            guard let windowInfo = self.originalWindowInfo else {
+                await self.stopCapture()
+                return
+            }
+            
+            // Üst üste hızlı çökme sayacı.
+            let now = Date()
+            if now.timeIntervalSince(self.lastRestartTime) < 2.0 {
+                self.consecutiveRestarts += 1
+            } else {
+                self.consecutiveRestarts = 1
+            }
+            self.lastRestartTime = now
+            
+            if self.consecutiveRestarts > 3 {
+                print(">>> [StreamManager] Üst üste 3 kez çökme yaşandı. Yeniden başlatma iptal edildi.")
+                await self.stopCapture()
+                return
+            }
+            
+            // SESSİZ RESTART: Paneli kapatma — kullanıcı son kareyi donmuş olarak görmeye devam eder,
+            // yeni SCStream başlar başlamaz render kaldığı yerden akmaya başlar.
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            print(">>> [StreamManager] Sessiz yeniden başlatma deneniyor (Deneme: \(self.consecutiveRestarts))...")
+            
+            do {
+                try await self.silentRestart(for: windowInfo)
+            } catch {
+                print(">>> [StreamManager] Sessiz restart başarısız: \(error.localizedDescription). Tamamen kapatılıyor.")
+                await self.stopCapture()
             }
         }
     }

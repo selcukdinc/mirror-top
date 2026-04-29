@@ -15,6 +15,11 @@ public final class FloatingPanel: NSPanel {
         self.isOpaque = false
         self.hasShadow = true // Gölgeli
         
+        // KRİTİK: NSPanel/NSWindow varsayılan olarak `isReleasedWhenClosed = true`'dur.
+        // closePanel() içinde orderOut + güçlü referansı nil yaptığımızda AppKit zaten release ediyor,
+        // ARC de release ediyor -> double-free / EXC_BAD_ACCESS. Bunu kapatıp yaşam döngüsünü ARC'ye bırakıyoruz.
+        self.isReleasedWhenClosed = false
+        
         // Başlık çubuğunu görünmez yap
         self.titlebarAppearsTransparent = true
         self.titleVisibility = .hidden

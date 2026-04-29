@@ -25,6 +25,16 @@ public final class WindowManager {
             return nil
         }
         let pid = frontmostApp.processIdentifier
+        
+        // KRİTİK: Etkileşim modunda kullanıcı panele tıklayınca MirrorTop önplana geçiyor.
+        // Bu sırada Cmd+Opt+T'ye basılırsa kendi FloatingPanel'imizin CGWindowID'sini yakalardık
+        // ve sonsuz feedback loop'una düşerdik (kendi mirror'ımızı mirror etmek -> GPU/RAM patlaması -> crash).
+        let ourPID = ProcessInfo.processInfo.processIdentifier
+        if pid == ourPID {
+            print(">>> [WindowManager] Odaktaki uygulama MirrorTop'un kendisi. Recursive capture engellendi.")
+            return nil
+        }
+        
         print(">>> [WindowManager] Odaktaki uygulama: \(frontmostApp.localizedName ?? "Bilinmiyor") (PID: \(pid))")
         
         let appElement = AXUIElementCreateApplication(pid)

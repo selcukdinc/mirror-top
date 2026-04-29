@@ -1,8 +1,11 @@
 import AppKit
 import AVFoundation
+import VideoToolbox
 
 public final class CapturePreviewView: NSView {
-    public let videoLayer = AVSampleBufferDisplayLayer()
+    // AVSampleBufferDisplayLayer zaman zaman VT-DS -12902 hatası verdiği için
+    // macOS'te ScreenCaptureKit ile en stabil yöntem olan CALayer + IOSurface kullanıyoruz.
+    private let videoLayer = CALayer()
     
     // Etkileşim modu değişkenleri
     public var interactionMode: Bool = false {
@@ -35,9 +38,8 @@ public final class CapturePreviewView: NSView {
     
     private func setupLayer() {
         self.wantsLayer = true
-        // AVFoundation'da IOSurface destekli buffer'lar için .resizeAspect kullanılmalıdır,
-        // aksi takdirde .resize bozulup görüntüyü sol üste sabitler.
-        videoLayer.videoGravity = .resizeAspect
+        // IOSurface destekli buffer'lar için .resizeAspect kullanılmalıdır
+        videoLayer.contentsGravity = .resizeAspect
         
         // Performans optimizasyonu için arka planı transparan yapıyoruz.
         videoLayer.isOpaque = false
@@ -53,10 +55,18 @@ public final class CapturePreviewView: NSView {
     
     /// ScreenCaptureKit'ten gelen video karelerini render eder.
     public func enqueue(_ sampleBuffer: CMSampleBuffer) {
-        if videoLayer.status == .failed {
-            videoLayer.flush()
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        
+        var cgImage: CGImage?
+        // CVPixelBuffer'dan sıfır-kopyalama (zero-copy) mantığıyla çok hızlı bir şekilde CGImage üretiyoruz.
+        // Doğrudan IOSurface atamak bazı macOS sürümlerinde Swift köprüleme (bridging) hatasından dolayı görünmez olabiliyor.
+        VTCreateCGImageFromCVPixelBuffer(pixelBuffer, options: nil, imageOut: &cgImage)
+        
+        if let image = cgImage {
+            DispatchQueue.main.async {
+                self.videoLayer.contents = image
+            }
         }
-        videoLayer.enqueue(sampleBuffer)
     }
     
     // MARK: - Input Forwarding (Etkileşim Modu)
