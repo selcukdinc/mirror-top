@@ -6,7 +6,7 @@ import ScreenCaptureKit
 public struct FocusedWindowInfo: Sendable {
     public let cgWindowID: CGWindowID
     public let title: String
-    public let frame: CGRect
+    public var frame: CGRect
     public let pid: pid_t
     public let appName: String
 }

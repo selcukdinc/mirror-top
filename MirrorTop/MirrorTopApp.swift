@@ -27,13 +27,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             GlobalHotkeyManager.shared.registerHotkey()
             
             // 3. Kısayol tetiklendiğinde StreamManager'ı çağır
-            GlobalHotkeyManager.shared.onHotKeyTriggered = {
+            GlobalHotkeyManager.shared.onCaptureToggleTriggered = {
                 Task {
                     do {
-                        print(">>> [DEBUG] Odaklanılmış pencere aranıyor...")
                         if let windowInfo = try await WindowManager.shared.getFocusedWindow() {
-                            print(">>> [DEBUG] Bulunan Pencere: \(windowInfo.title) (PID: \(windowInfo.pid), ID: \(windowInfo.cgWindowID))")
-                            print(">>> [DEBUG] StreamManager toggleCapture başlatılıyor...")
                             try await StreamManager.shared.toggleCapture(windowInfo: windowInfo)
                         } else {
                             print(">>> [DEBUG] HATA: Odakta geçerli bir pencere bulunamadı.")
@@ -42,6 +39,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         print(">>> [DEBUG] HATA: İşlem sırasında hata oluştu: \(error)")
                     }
                 }
+            }
+            
+            // 4. Etkileşim modu (Interaction Mode) aç/kapat
+            GlobalHotkeyManager.shared.onInteractionToggleTriggered = {
+                StreamManager.shared.toggleInteractionMode()
             }
         } else {
             print(">>> [DEBUG] UYARI: Erişilebilirlik izni yok! Sistem Ayarları'ndan izin verilmesi bekleniyor.")

@@ -24,8 +24,39 @@ public final class FloatingPanel: NSPanel {
         self.standardWindowButton(.miniaturizeButton)?.isHidden = true
         self.standardWindowButton(.zoomButton)?.isHidden = true
         
-        // Panelin fare ile tutulup taşınabilmesi ve boyutlandırılabilmesi için:
-        self.ignoresMouseEvents = false // Fare tıklamalarını algılasın
-        self.isMovableByWindowBackground = true // İçinden tutulup taşınabilsin
+        // Panelin varsayılan davranışı (İzleme Modu - View Only)
+        self.ignoresMouseEvents = true // Tıklamalar içinden geçer, alttaki uygulamaya gider
+        self.isMovableByWindowBackground = true // İçinden tutulup taşınabilsin (Interaction mode'da)
+        
+        setupMenu()
+    }
+    
+    // Sağ tık menüsü kurulumu
+    private func setupMenu() {
+        let menu = NSMenu(title: "MirrorTop")
+        let toggleItem = NSMenuItem(title: "Etkileşim Modunu Aç/Kapat", action: #selector(toggleMode), keyEquivalent: "")
+        toggleItem.target = self
+        menu.addItem(toggleItem)
+        self.contentView?.menu = menu
+    }
+    
+    @objc private func toggleMode() {
+        // StreamManager'ı referans alarak modu değiştir
+        StreamManager.shared.toggleInteractionMode()
+    }
+    
+    public override var canBecomeKey: Bool { return interactionMode }
+    public override var canBecomeMain: Bool { return interactionMode }
+    
+    public var interactionMode: Bool = false {
+        didSet {
+            // Etkileşim modu açıksa fareyi yakala, kapalıysa alttaki uygulamaya (ör. IDE'ye) tıklamayı geçir
+            self.ignoresMouseEvents = !interactionMode
+            
+            if interactionMode {
+                // Etkileşim modundayken klavye girişlerini (focus) alabilmesi için
+                self.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 }
