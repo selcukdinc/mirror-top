@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		27B9CFFA2FA23C1A00F4D468 /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27B9CFF92FA23C1A00F4D468 /* ScreenCaptureKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		27B9CFDE2FA2389D00F4D468 /* MirrorTop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MirrorTop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		27B9CFF92FA23C1A00F4D468 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				27B9CFFA2FA23C1A00F4D468 /* ScreenCaptureKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +39,7 @@
 			isa = PBXGroup;
 			children = (
 				27B9CFE02FA2389D00F4D468 /* MirrorTop */,
+				27B9CFF82FA23C1A00F4D468 /* Frameworks */,
 				27B9CFDF2FA2389D00F4D468 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +50,14 @@
 				27B9CFDE2FA2389D00F4D468 /* MirrorTop.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		27B9CFF82FA23C1A00F4D468 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				27B9CFF92FA23C1A00F4D468 /* ScreenCaptureKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -251,10 +266,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -281,10 +296,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
