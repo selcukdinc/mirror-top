@@ -13,6 +13,9 @@ public final class StreamManager: NSObject, Sendable {
     private var capturedWindowID: CGWindowID?
     private var frameCount = 0
     private var originalWindowInfo: FocusedWindowInfo?
+    private var lastPanelResizeTime: Date = Date()
+    private var consecutiveRestarts = 0
+    private var lastRestartTime = Date.distantPast
     
     public var interactionMode: Bool = false {
         didSet {
@@ -54,7 +57,8 @@ public final class StreamManager: NSObject, Sendable {
     
     /// Pencereyi yakalamayı başlatır.
     private func startCapture(for windowInfo: FocusedWindowInfo) async throws {
-        let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        // onScreenWindowsOnly: false yapıyoruz ki pencere başka bir masaüstüne (Space) geçse bile onu bulabilelim.
+        let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         
         guard let scWindow = shareableContent.windows.first(where: { $0.windowID == windowInfo.cgWindowID }) else {
             print("Hata: Pencere ScreenCaptureKit içeriklerinde bulunamadı.")
@@ -161,50 +165,56 @@ extension StreamManager: SCStreamOutput, SCStreamDelegate {
         
         switch type {
         case .screen:
-            Task { @MainActor in
+            // İşlemleri arka planda yapıp sadece UI güncellemelerini Main Thread'e atıyoruz.
+            // Saniyede 60 kez Task oluşturmak bellek sızıntısına (Task exhaustion) neden oluyordu, DispatchQueue daha hafif.
+            var newContentRect: CGRect?
+            if let attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
+               let attachments = attachmentsArray.first {
+                if let rect = attachments[.contentRect] as? CGRect {
+                    newContentRect = rect
+                } else if let dict = attachments[.contentRect] as? NSDictionary {
+                    newContentRect = CGRect(dictionaryRepresentation: dict as CFDictionary)
+                }
+            }
+            
+            DispatchQueue.main.async {
                 self.frameCount += 1
                 if self.frameCount == 1 {
                     print(">>> [StreamManager] İLK KARE GELDİ! Ekran yayını başarıyla render ediliyor.")
                 }
                 self.previewView?.enqueue(sampleBuffer)
                 
-                // Pencere boyutu değişimini kontrol et (Orijinal pencere boyutlandırılırsa paneli de güncelle)
-                guard let attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-                      let attachments = attachmentsArray.first else { return }
-                
-                var newContentRect: CGRect?
-                if let rect = attachments[.contentRect] as? CGRect {
-                    newContentRect = rect
-                } else if let dict = attachments[.contentRect] as? NSDictionary {
-                    newContentRect = CGRect(dictionaryRepresentation: dict as CFDictionary)
-                }
-                
                 if let rect = newContentRect {
                     let oldSize = self.originalWindowInfo?.frame.size ?? rect.size
                     // 1 pikselden büyük bir değişim varsa (Floating point hatalarını önlemek için)
                     if abs(oldSize.width - rect.size.width) > 1.0 || abs(oldSize.height - rect.size.height) > 1.0 {
-                        
-                        if let currentFrame = self.activePanel?.frame {
-                            // Kullanıcının paneli ne kadar büyüttüğünü/küçülttüğünü (Scale) hesapla
-                            let scale = currentFrame.width / oldSize.width
+                        let now = Date()
+                        // Performans optimizasyonu: Saniyede maksimum 30 kez yeniden boyutlandırma yap (Overload'u engellemek için)
+                        if now.timeIntervalSince(self.lastPanelResizeTime) > 0.033 {
+                            self.lastPanelResizeTime = now
                             
-                            // Yeni boyutu kullanıcının scale oranına göre uyarla
-                            let newPanelSize = CGSize(width: rect.size.width * scale, height: rect.size.height * scale)
-                            
-                            self.originalWindowInfo?.frame.size = rect.size
-                            self.activePanel?.aspectRatio = rect.size
-                            self.activePanel?.contentAspectRatio = rect.size
-                            
-                            // Panelin sol üst köşesini (Top-Left) sabit tutarak yeni boyuta geç
-                            var newFrame = currentFrame
-                            newFrame.size = newPanelSize
-                            newFrame.origin.y = currentFrame.maxY - newPanelSize.height
-                            self.activePanel?.setFrame(newFrame, display: true, animate: false)
-                            
-                            // Etkileşim modu için güncel çerçeveyi de kaydet
-                            self.previewView?.originalWindowFrame = rect
-                            
-                            print(">>> [StreamManager] Orijinal pencere yeniden boyutlandırıldı. Yeni Panel Boyutu: \(newPanelSize)")
+                            if let currentFrame = self.activePanel?.frame {
+                                // Kullanıcının paneli ne kadar büyüttüğünü/küçülttüğünü (Scale) hesapla
+                                let scale = currentFrame.width / oldSize.width
+                                
+                                // Yeni boyutu kullanıcının scale oranına göre uyarla
+                                let newPanelSize = CGSize(width: rect.size.width * scale, height: rect.size.height * scale)
+                                
+                                self.originalWindowInfo?.frame.size = rect.size
+                                self.activePanel?.aspectRatio = rect.size
+                                self.activePanel?.contentAspectRatio = rect.size
+                                
+                                // Panelin sol üst köşesini (Top-Left) sabit tutarak yeni boyuta geç
+                                var newFrame = currentFrame
+                                newFrame.size = newPanelSize
+                                newFrame.origin.y = currentFrame.maxY - newPanelSize.height
+                                self.activePanel?.setFrame(newFrame, display: true, animate: false)
+                                
+                                // Etkileşim modu için güncel çerçeveyi de kaydet
+                                self.previewView?.originalWindowFrame = rect
+                                
+                                print(">>> [StreamManager] Orijinal pencere yeniden boyutlandırıldı. Yeni Panel Boyutu: \(newPanelSize)")
+                            }
                         }
                     }
                 }
@@ -218,7 +228,38 @@ extension StreamManager: SCStreamOutput, SCStreamDelegate {
     nonisolated public func stream(_ stream: SCStream, didStopWithError error: Error) {
         Task { @MainActor in
             print("Yayın hatayla durdu: \(error.localizedDescription)")
+            let lastWindowInfo = self.originalWindowInfo
             await self.stopCapture()
+            
+            // Eğer kullanıcı ekran paylaşımını manuel olarak durdurduysa (Menü çubuğundan)
+            if let scError = error as? SCStreamError, scError.code == .userStopped {
+                print(">>> [StreamManager] Kullanıcı yayını bilerek durdurdu. Otomatik başlatma iptal edildi.")
+                return
+            }
+            
+            // Eğer yayın pencere çok hızlı boyutlandırıldığı için veya masaüstü değiştirildiği için kesildiyse,
+            // arka planda otomatik olarak yeniden başlatmayı dene.
+            if let windowInfo = lastWindowInfo {
+                let now = Date()
+                if now.timeIntervalSince(self.lastRestartTime) < 2.0 {
+                    self.consecutiveRestarts += 1
+                } else {
+                    self.consecutiveRestarts = 1
+                }
+                self.lastRestartTime = now
+                
+                // Eğer sonsuz bir çökme döngüsüne girdiysek durdur.
+                if self.consecutiveRestarts > 3 {
+                    print(">>> [StreamManager] Üst üste 3 kez çökme yaşandı. Yeniden başlatma iptal edildi.")
+                    return
+                }
+                
+                try? await Task.sleep(nanoseconds: 500_000_000) // Yarım saniye bekle
+                print(">>> [StreamManager] Yayın kopması algılandı. Otomatik yeniden başlatma deneniyor (Deneme: \(self.consecutiveRestarts))...")
+                
+                // Pencere başka bir masaüstünde bile olsa doğrudan bağlanmayı dene
+                try? await self.startCapture(for: windowInfo)
+            }
         }
     }
 }
