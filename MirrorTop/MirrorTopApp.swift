@@ -6,58 +6,107 @@
 //
 
 import SwiftUI
+import AppKit
+
+// MARK: - App Delegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var onboardingWindow: NSWindow?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
-        print(">>> [DEBUG] Uygulama başlatıldı. İzinler kontrol ediliyor...")
+        print(">>> [DEBUG] Uygulama başlatıldı.")
         
-        // 0. Ekran Kaydı (Screen Recording) iznini iste (ScreenCaptureKit için şart)
-        let hasScreenCaptureAccess = CGPreflightScreenCaptureAccess()
-        if !hasScreenCaptureAccess {
-            print(">>> [DEBUG] Ekran Kaydı izni eksik. Sistemden izin isteniyor...")
-            CGRequestScreenCaptureAccess()
-        }
+        // Kısayolu erkenden kuruyoruz; izin yoksa zaten WindowManager nil döner.
+        GlobalHotkeyManager.shared.registerHotkey()
         
-        // 1. İzinleri kontrol et (Erişilebilirlik)
-        let isTrusted = AccessibilityManager.shared.checkAndPrompt()
-        
-        if isTrusted && hasScreenCaptureAccess {
-            print(">>> [DEBUG] Erişilebilirlik izni mevcut. Kısayol kaydediliyor...")
-            // 2. Kısayolu kaydet
-            GlobalHotkeyManager.shared.registerHotkey()
-            
-            // 3. Kısayol tetiklendiğinde StreamManager'ı çağır
-            GlobalHotkeyManager.shared.onCaptureToggleTriggered = {
-                Task {
-                    do {
-                        if let windowInfo = try await WindowManager.shared.getFocusedWindow() {
-                            try await StreamManager.shared.toggleCapture(windowInfo: windowInfo)
-                        } else {
-                            print(">>> [DEBUG] HATA: Odakta geçerli bir pencere bulunamadı.")
-                        }
-                    } catch {
-                        print(">>> [DEBUG] HATA: İşlem sırasında hata oluştu: \(error)")
-                    }
+        GlobalHotkeyManager.shared.onCaptureToggleTriggered = { [weak self] in
+            guard let self else { return }
+            // İzinler eksikse onboarding'i göster (sessizce başarısız olmak yerine).
+            if !PermissionsManager.shared.allGranted {
+                PermissionsManager.shared.refresh()
+                if !PermissionsManager.shared.allGranted {
+                    self.showOnboarding()
+                    return
                 }
             }
-            
-            // 4. Etkileşim modu (Interaction Mode) aç/kapat
-            GlobalHotkeyManager.shared.onInteractionToggleTriggered = {
-                StreamManager.shared.toggleInteractionMode()
+            Task { @MainActor in
+                do {
+                    if let windowInfo = try await WindowManager.shared.getFocusedWindow() {
+                        try await StreamManager.shared.toggleCapture(windowInfo: windowInfo)
+                    } else {
+                        print(">>> [DEBUG] Odakta geçerli bir pencere bulunamadı.")
+                    }
+                } catch {
+                    print(">>> [DEBUG] HATA: \(error)")
+                }
             }
+        }
+        
+        GlobalHotkeyManager.shared.onInteractionToggleTriggered = {
+            StreamManager.shared.toggleInteractionMode()
+        }
+        
+        // İzin kontrolü → eksikse modern onboarding penceresi.
+        PermissionsManager.shared.refresh()
+        if !PermissionsManager.shared.allGranted {
+            showOnboarding()
         } else {
-            print(">>> [DEBUG] UYARI: Erişilebilirlik izni yok! Sistem Ayarları'ndan izin verilmesi bekleniyor.")
+            print(">>> [DEBUG] Tüm izinler mevcut. Menü çubuğundan kullanıma hazır.")
+        }
+    }
+    
+    /// Onboarding penceresini açar (zaten açıksa öne getirir).
+    /// LSUIElement = YES olduğu için NSWindow'u manuel oluşturuyoruz.
+    func showOnboarding() {
+        if let existing = onboardingWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let view = OnboardingView { [weak self] in
+            self?.onboardingWindow?.close()
+        }
+        
+        let hosting = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hosting)
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.title = "MirrorTop"
+        window.isReleasedWhenClosed = false
+        window.isMovableByWindowBackground = true
+        window.center()
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.onboardingWindow = window
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        if (notification.object as? NSWindow) === onboardingWindow {
+            onboardingWindow = nil
         }
     }
 }
+
+// MARK: - SwiftUI App
 
 @main
 struct MirrorTopApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @ObservedObject private var permissions = PermissionsManager.shared
     
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        MenuBarExtra {
+            MenuBarContent(showOnboarding: { appDelegate.showOnboarding() })
+                .environmentObject(permissions)
+        } label: {
+            Image(systemName: "rectangle.on.rectangle.angled")
         }
+        .menuBarExtraStyle(.menu)
     }
 }
+
