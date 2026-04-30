@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# macOS sistem dosyaları
+# ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# ---------------------------------------------------------------------------
+# Xcode — build çıktıları
+# ---------------------------------------------------------------------------
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ---------------------------------------------------------------------------
+# Xcode — kullanıcıya özel dosyalar
+# ---------------------------------------------------------------------------
+xcuserdata/
+**/xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.perspectivev3
+
+# Workspace kullanıcı ayarları
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# ---------------------------------------------------------------------------
+# Swift Package Manager
+# ---------------------------------------------------------------------------
+.build/
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# ---------------------------------------------------------------------------
+# CocoaPods / Carthage (kullanılırsa)
+# ---------------------------------------------------------------------------
+Pods/
+Carthage/Build/
+
+# ---------------------------------------------------------------------------
+# Fastlane / Provisioning
+# ---------------------------------------------------------------------------
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+*.mobileprovision
+*.p12
+
+# ---------------------------------------------------------------------------
+# IDE / editor geçici dosyaları
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# Loglar ve geçici çıktılar
+# ---------------------------------------------------------------------------
+*.log
+*.tmp
+tmp/

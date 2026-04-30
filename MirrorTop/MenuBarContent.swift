@@ -8,9 +8,12 @@ public struct MenuBarContent: View {
     @State private var interactionMode: Bool = StreamManager.shared.interactionMode
     
     public var showOnboarding: () -> Void
+    public var showAbout: () -> Void
     
-    public init(showOnboarding: @escaping () -> Void) {
+    public init(showOnboarding: @escaping () -> Void,
+                showAbout: @escaping () -> Void) {
         self.showOnboarding = showOnboarding
+        self.showAbout = showAbout
     }
     
     public var body: some View {
@@ -39,16 +42,16 @@ public struct MenuBarContent: View {
             
             Button("İzinleri Yönet…") { showOnboarding() }
             
-            Menu("Yardım") {
-                Button("Kısayollar") { }
-                    .disabled(true)
+            Button("Yardım & Nasıl Çalışır…") { showAbout() }
+            
+            Menu("Kısayollar") {
                 Text("⌘⌥T   Yansıtmayı Aç/Kapat")
                 Text("⌘⌥I   Etkileşim Modu")
             }
             
             Divider()
             
-            Button("MirrorTop Hakkında") { showAbout() }
+            Button("Mirror Top Hakkında…") { showAbout() }
             Button("Çıkış") { NSApp.terminate(nil) }
                 .keyboardShortcut("q", modifiers: .command)
         }
@@ -79,17 +82,5 @@ public struct MenuBarContent: View {
                 print(">>> [MenuBar] HATA: \(error)")
             }
         }
-    }
-    
-    private func showAbout() {
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "MirrorTop",
-            .applicationVersion: "1.0",
-            .credits: NSAttributedString(
-                string: "Açık kaynak — github.com/selcukdinc/MirrorTop",
-                attributes: [.foregroundColor: NSColor.secondaryLabelColor]
-            )
-        ])
-        NSApp.activate(ignoringOtherApps: true)
     }
 }

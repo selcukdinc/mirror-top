@@ -246,12 +246,15 @@ extension StreamManager: SCStreamOutput, SCStreamDelegate {
                 }
             }
             
+            // Swift 6: CMSampleBuffer Sendable değil; main thread'e geçişte
+            // unsafe wrapper ile aktarıyoruz. Buffer thread-safe olarak retain edilmiş durumda.
+            nonisolated(unsafe) let buffer = sampleBuffer
             DispatchQueue.main.async {
                 self.frameCount += 1
                 if self.frameCount == 1 {
                     print(">>> [StreamManager] İLK KARE GELDİ! Ekran yayını başarıyla render ediliyor.")
                 }
-                self.previewView?.enqueue(sampleBuffer)
+                self.previewView?.enqueue(buffer)
                 
                 if let rect = newContentRect {
                     let oldSize = self.originalWindowInfo?.frame.size ?? rect.size

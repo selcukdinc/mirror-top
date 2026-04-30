@@ -12,6 +12,7 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: NSWindow?
+    private var aboutWindow: NSWindow?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print(">>> [DEBUG] Uygulama başlatıldı.")
@@ -64,9 +65,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
-        let view = OnboardingView { [weak self] in
-            self?.onboardingWindow?.close()
-        }
+        let view = OnboardingView(
+            onContinue: { [weak self] in
+                self?.onboardingWindow?.close()
+            },
+            onShowHelp: { [weak self] in
+                self?.showAbout()
+            }
+        )
         
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
@@ -82,13 +88,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         self.onboardingWindow = window
     }
+    
+    /// Hakkında / Yardım penceresini açar (zaten açıksa öne getirir).
+    func showAbout() {
+        if let existing = aboutWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let view = AboutView { [weak self] in
+            self?.aboutWindow?.close()
+        }
+        
+        let hosting = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hosting)
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.title = "Mirror Top — Hakkında"
+        window.isReleasedWhenClosed = false
+        window.isMovableByWindowBackground = true
+        window.center()
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.aboutWindow = window
+    }
 }
 
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        if (notification.object as? NSWindow) === onboardingWindow {
-            onboardingWindow = nil
-        }
+        let w = notification.object as? NSWindow
+        if w === onboardingWindow { onboardingWindow = nil }
+        if w === aboutWindow { aboutWindow = nil }
     }
 }
 
@@ -104,8 +137,11 @@ struct MirrorTopApp: App {
             MenuBarContent(showOnboarding: { appDelegate.showOnboarding() })
                 .environmentObject(permissions)
         } label: {
-            Image(systemName: "rectangle.on.rectangle.angled")
-        }
+            Image(systemNam
+                showOnboarding: { appDelegate.showOnboarding() },
+                showAbout: { appDelegate.showAbout() }
+            )
+    }
         .menuBarExtraStyle(.menu)
     }
 }

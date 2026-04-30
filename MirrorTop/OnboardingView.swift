@@ -9,9 +9,13 @@ public struct OnboardingView: View {
     
     /// İzinler tamamlandığında kapat butonuna basıldığında çağrılır.
     public var onContinue: () -> Void
+    /// "?" butonuna basıldığında Hakkında / Yardım penceresini aç.
+    public var onShowHelp: (() -> Void)?
     
-    public init(onContinue: @escaping () -> Void) {
+    public init(onContinue: @escaping () -> Void,
+                onShowHelp: (() -> Void)? = nil) {
         self.onContinue = onContinue
+        self.onShowHelp = onShowHelp
     }
     
     public var body: some View {
@@ -51,19 +55,33 @@ public struct OnboardingView: View {
     }
     
     private var header: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "rectangle.on.rectangle.angled")
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(.tint)
-                .padding(.top, 24)
-            Text("MirrorTop'a Hoş Geldiniz")
-                .font(.title2).bold()
-            Text("Herhangi bir pencereyi “Always on Top” yapmak için iki izne ihtiyacımız var.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 20)
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 12) {
+                Image(systemName: "rectangle.on.rectangle.angled")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(.tint)
+                    .padding(.top, 24)
+                Text("Mirror Top'a Hoş Geldiniz")
+                    .font(.title2).bold()
+                Text("Herhangi bir pencereyi “Always on Top” yapmak için iki izne ihtiyacımız var.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 20)
+            }
+            .frame(maxWidth: .infinity)
+            
+            if let onShowHelp {
+                Button(action: onShowHelp) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 18, weight: .regular))
+                }
+                .buttonStyle(.borderless)
+                .help("Nasıl çalışır? — Yardım & Hakkında")
+                .padding(.top, 14)
+                .padding(.trailing, 14)
+            }
         }
     }
     

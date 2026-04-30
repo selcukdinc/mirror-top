@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import ApplicationServices
 import CoreGraphics
 import AppKit
@@ -32,9 +33,9 @@ public final class PermissionsManager: ObservableObject {
     /// Sistem Ayarları'nda izin verdiği anda UI canlı güncellenir.
     public func startPolling() {
         stopPolling()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
-                self?.refresh()
+                PermissionsManager.shared.refresh()
             }
         }
     }
