@@ -54,6 +54,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             print(">>> [DEBUG] Tüm izinler mevcut. Menü çubuğundan kullanıma hazır.")
         }
+        
+        // Açılışta güncelleme kontrolü (sadece kullanıcı ayarlardan açtıysa).
+        UpdateChecker.shared.checkOnLaunchIfEnabled()
     }
     
     /// Onboarding penceresini açar (zaten açıksa öne getirir).

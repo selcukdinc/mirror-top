@@ -1,9 +1,10 @@
 import SwiftUI
 import AppKit
 
-/// Menü çubuğu (`MenuBarExtra`) içeriği. Standart `.menu` stilinde ince ve native görünür.
+/// Menü çubuğu (`MenuBarExtra`) içeriği.
 public struct MenuBarContent: View {
     @EnvironmentObject private var permissions: PermissionsManager
+    @ObservedObject private var settings = SettingsManager.shared
     @State private var isCapturing: Bool = StreamManager.shared.isCapturing
     @State private var interactionMode: Bool = StreamManager.shared.interactionMode
     
@@ -18,18 +19,15 @@ public struct MenuBarContent: View {
     
     public var body: some View {
         Group {
-            // Durum bilgisi
             if !permissions.allGranted {
-                Label("İzin gerekli", systemImage: "exclamationmark.triangle.fill")
-                Button("İzin Ekranını Aç…") { showOnboarding() }
+                Label(Strings.menuPermNeeded, systemImage: "exclamationmark.triangle.fill")
+                Button(Strings.menuOpenPerms) { showOnboarding() }
                 Divider()
             }
             
-            Button(captureLabel) {
-                triggerCapture()
-            }
-            .keyboardShortcut("t", modifiers: [.command, .option])
-            .disabled(!permissions.allGranted)
+            Button(captureLabel) { triggerCapture() }
+                .keyboardShortcut("t", modifiers: [.command, .option])
+                .disabled(!permissions.allGranted)
             
             Button(interactionLabel) {
                 StreamManager.shared.toggleInteractionMode()
@@ -40,22 +38,22 @@ public struct MenuBarContent: View {
             
             Divider()
             
-            Button("İzinleri Yönet…") { showOnboarding() }
+            Button(Strings.menuManagePerms) { showOnboarding() }
+            Button(Strings.menuSettings) { showAbout() }
+            Button(Strings.menuHelp) { showAbout() }
             
-            Button("Yardım & Nasıl Çalışır…") { showAbout() }
-            
-            Menu("Kısayollar") {
-                Text("⌘⌥T   Yansıtmayı Aç/Kapat")
-                Text("⌘⌥I   Etkileşim Modu")
+            Menu(Strings.menuShortcuts) {
+                Text("⌘⌥T   \(Strings.scToggleTitle)")
+                Text("⌘⌥I   \(Strings.scInteractionTitle)")
             }
             
             Divider()
             
-            Button("Mirror Top Hakkında…") { showAbout() }
-            Button("Çıkış") { NSApp.terminate(nil) }
+            Button(Strings.menuAbout) { showAbout() }
+            Button(Strings.menuQuit) { NSApp.terminate(nil) }
                 .keyboardShortcut("q", modifiers: .command)
         }
-        // Menü her açıldığında durumu yenile
+        .id(settings.language.rawValue)
         .onAppear {
             permissions.refresh()
             isCapturing = StreamManager.shared.isCapturing
@@ -64,11 +62,11 @@ public struct MenuBarContent: View {
     }
     
     private var captureLabel: String {
-        StreamManager.shared.isCapturing ? "Yansıtmayı Durdur" : "Odaktaki Pencereyi Yansıt"
+        StreamManager.shared.isCapturing ? Strings.menuMirrorStop : Strings.menuMirrorStart
     }
     
     private var interactionLabel: String {
-        StreamManager.shared.interactionMode ? "Etkileşim Modu: AÇIK" : "Etkileşim Modu: KAPALI"
+        StreamManager.shared.interactionMode ? Strings.menuInteractionOn : Strings.menuInteractionOff
     }
     
     private func triggerCapture() {

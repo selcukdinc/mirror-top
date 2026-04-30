@@ -1,10 +1,12 @@
 import SwiftUI
 import AppKit
 
-/// Uygulama hakkında, "nasıl çalışır" ve geliştirici/proje künyesi penceresi.
-/// Menü çubuğundan veya onboarding üzerinden açılır.
+/// Uygulama hakkında, "nasıl çalışır", ayarlar ve geliştirici/proje künyesi penceresi.
 public struct AboutView: View {
     public var onClose: () -> Void
+    
+    @ObservedObject private var settings = SettingsManager.shared
+    @ObservedObject private var updates  = UpdateChecker.shared
     
     @State private var selectedTab: Tab = .overview
     
@@ -13,18 +15,26 @@ public struct AboutView: View {
     }
     
     enum Tab: String, CaseIterable, Identifiable {
-        case overview   = "Genel Bakış"
-        case howItWorks = "Nasıl Çalışır"
-        case shortcuts  = "Kısayollar"
-        case credits    = "Künye"
+        case overview, howItWorks, shortcuts, settings, credits
         
         var id: String { rawValue }
+        
+        var titleKey: String {
+            switch self {
+            case .overview:   return Strings.tabOverview
+            case .howItWorks: return Strings.tabHowItWorks
+            case .shortcuts:  return Strings.tabShortcuts
+            case .settings:   return Strings.tabSettings
+            case .credits:    return Strings.tabCredits
+            }
+        }
         
         var icon: String {
             switch self {
             case .overview:   return "questionmark.circle"
             case .howItWorks: return "gearshape.2"
             case .shortcuts:  return "keyboard"
+            case .settings:   return "slider.horizontal.3"
             case .credits:    return "person.crop.circle.badge.checkmark"
             }
         }
@@ -34,7 +44,6 @@ public struct AboutView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            
             HStack(spacing: 0) {
                 sidebar
                 Divider()
@@ -43,13 +52,14 @@ public struct AboutView: View {
                         .padding(24)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(minWidth: 460)
+                .frame(minWidth: 480)
             }
-            
             Divider()
             footer
         }
-        .frame(width: 720, height: 540)
+        .frame(width: 760, height: 580)
+        // Dil değişince tüm metinler yenilensin diye view kimliği değişiyor.
+        .id(settings.language.rawValue)
     }
     
     // MARK: - Header
@@ -63,12 +73,10 @@ public struct AboutView: View {
                 .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Mirror Top")
-                    .font(.title2).bold()
+                Text(Strings.appName).font(.title2).bold()
                 HStack(spacing: 8) {
-                    Text("Versiyon \(AppInfo.version)")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    Text("\(Strings.crVersion) \(AppInfo.version)")
+                        .font(.callout).foregroundStyle(.secondary)
                     Text(AppInfo.stage)
                         .font(.caption.bold())
                         .padding(.horizontal, 7).padding(.vertical, 2)
@@ -86,17 +94,13 @@ public struct AboutView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Tab.allCases) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
+                Button { selectedTab = tab } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: tab.icon)
-                            .frame(width: 18)
-                        Text(tab.rawValue)
+                        Image(systemName: tab.icon).frame(width: 18)
+                        Text(tab.titleKey)
                         Spacer()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
                             .fill(selectedTab == tab ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -108,7 +112,7 @@ public struct AboutView: View {
             Spacer()
         }
         .padding(12)
-        .frame(width: 200)
+        .frame(width: 210)
         .background(Color(nsColor: .underPageBackgroundColor))
     }
     
@@ -120,189 +124,149 @@ public struct AboutView: View {
         case .overview:   overviewSection
         case .howItWorks: howItWorksSection
         case .shortcuts:  shortcutsSection
+        case .settings:   SettingsSection()
         case .credits:    creditsSection
         }
     }
     
-    // MARK: Genel Bakış
-    
     private var overviewSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            sectionTitle("Bu uygulama ne işe yarar?")
-            Text("""
-                 Mirror Top, herhangi bir uygulama penceresini macOS üzerinde **\"Always on Top\" \
-                 (her zaman üstte)** hâle getirmeye yarayan bir menü çubuğu aracıdır.
-                 Bir referans dökümanı, video oynatıcıyı, terminali veya küçük bir izleme penceresini \
-                 başka uygulamalar üzerinde sürekli görünür tutmak istediğinizde işinize yarar.
-                 """)
-            
-            sectionTitle("Hangi probleme çözüm sunuyor?")
-            Text("""
-                 Windows'taki PowerToys *Always on Top* özelliğinin macOS'te yerleşik bir karşılığı yoktur. \
-                 macOS, üçüncü parti uygulamaların başka bir uygulamanın pencere seviyesini doğrudan \
-                 değiştirmesine **SIP (System Integrity Protection)** kapatılmadan izin vermez.
-                 """)
-            Text("""
-                 Mirror Top bu kısıtı, hedef pencereyi gerçekten "üste taşımak" yerine **canlı olarak \
-                 yansıtarak** (mirror) çözer. Sonuç: 60 FPS akışkan, gerçek pencerenin üstünde duran \
-                 şeffaf bir kopya — ve isteğe bağlı olarak fare/klavye etkileşimi.
-                 """)
-            
-            sectionTitle("Öne Çıkan Özellikler")
+            sectionTitle(Strings.ovWhatTitle)
+            Text(Strings.ovWhatBody)
+            sectionTitle(Strings.ovProblemTitle)
+            Text(Strings.ovProblemBody1)
+            Text(Strings.ovProblemBody2)
+            sectionTitle(Strings.ovFeaturesTitle)
             VStack(alignment: .leading, spacing: 10) {
-                bullet("Tek kısayolla odaktaki pencereyi anında yansıtır (⌘⌥T).")
-                bullet("Etkileşim Modu ile yansıtılan pencereye fare/klavye olayları gönderilir (⌘⌥I).")
-                bullet("Hedef pencere yeniden boyutlandırıldığında yansıma da canlı olarak ölçeklenir.")
-                bullet("Tüm Spaces'lerde görünür, şeffaf, native resize destekli `NSPanel`.")
-                bullet("macOS 5+ dakika sonunda akışı kesse bile **sessiz yeniden başlatma** ile flicker yaşatmadan devam eder.")
+                bullet(Strings.ovFeat1)
+                bullet(Strings.ovFeat2)
+                bullet(Strings.ovFeat3)
+                bullet(Strings.ovFeat4)
+                bullet(Strings.ovFeat5)
             }
         }
     }
-    
-    // MARK: Nasıl Çalışır
     
     private var howItWorksSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            sectionTitle("Mimari Akış")
+            sectionTitle(Strings.hwArchTitle)
             VStack(alignment: .leading, spacing: 10) {
-                step(1, title: "Odaktaki Pencereyi Tespit Et",
-                     desc: "Kullanıcı ⌘⌥T'ye bastığında **AXUIElement (Accessibility API)** üzerinden öndeki uygulamanın odak penceresini, başlığını, konum ve boyutunu okuruz.")
-                step(2, title: "CGWindowID Çözümle",
-                     desc: "AX'in döndürdüğü `AXCGWindowIdentifier` öncelikli, başarısızsa `SCShareableContent` ile pencereyi başlık + konum eşleşmesiyle çözeriz.")
-                step(3, title: "ScreenCaptureKit ile Yakala",
-                     desc: "Yalnızca o tek pencereyi `SCContentFilter` ile filtreleyip `SCStream` üzerinden 60 FPS yakalarız (`ignoreShadowsSingleWindow` ile çerçeve hizalaması korunur).")
-                step(4, title: "Şeffaf Floating Panel",
-                     desc: "Yakalanan kareler `.floating` seviyeli, `canJoinAllSpaces` özellikli özel bir `NSPanel` içindeki `CALayer`'a render edilir — pencere artık her zaman üstte.")
-                step(5, title: "Etkileşim Modu (Opsiyonel)",
-                     desc: "⌘⌥I ile etkinleştirilince, panel üstündeki fare/klavye olayları **CGEvent.postToPid** ile orijinal pencerenin PID'sine yönlendirilir.")
+                step(1, title: Strings.hwStep1Title, desc: Strings.hwStep1Desc)
+                step(2, title: Strings.hwStep2Title, desc: Strings.hwStep2Desc)
+                step(3, title: Strings.hwStep3Title, desc: Strings.hwStep3Desc)
+                step(4, title: Strings.hwStep4Title, desc: Strings.hwStep4Desc)
+                step(5, title: Strings.hwStep5Title, desc: Strings.hwStep5Desc)
             }
             
-            sectionTitle("Kullanılan macOS Teknolojileri")
+            sectionTitle(Strings.hwTechTitle)
             VStack(alignment: .leading, spacing: 8) {
-                techRow("ScreenCaptureKit",
-                        "Pencere bazlı yüksek performans yakalama (`SCStream`, `SCContentFilter`).")
-                techRow("AppKit / NSPanel",
-                        "Şeffaf, tüm Spaces'te görünen, native resize destekli yüzer pencere.")
-                techRow("SwiftUI + Combine",
-                        "Reaktif UI ve `@ObservableObject` izin yöneticisi (canlı izin durumu).")
-                techRow("Accessibility (AX) API",
-                        "Odaktaki pencerenin meta verisini güvenli okumak için.")
-                techRow("Core Graphics + CGEvent",
-                        "Yakalanan karelerin render'ı ve etkileşim modunda olay enjeksiyonu.")
-                techRow("Carbon HotKey API",
-                        "Sistem genelinde global kısayollar (`RegisterEventHotKey`).")
-                techRow("VideoToolbox",
-                        "`CVPixelBuffer → CGImage` dönüşümü (`VTCreateCGImageFromCVPixelBuffer`).")
+                techRow("ScreenCaptureKit", L10n.tr(
+                    "Pencere bazlı yüksek performans yakalama (`SCStream`, `SCContentFilter`).",
+                    "High-performance per-window capture (`SCStream`, `SCContentFilter`)."))
+                techRow("AppKit / NSPanel", L10n.tr(
+                    "Şeffaf, tüm Spaces'te görünen, native resize destekli yüzer pencere.",
+                    "Transparent floating panel visible across Spaces with native resize."))
+                techRow("SwiftUI + Combine", L10n.tr(
+                    "Reaktif UI ve `@ObservableObject` izin yöneticisi (canlı izin durumu).",
+                    "Reactive UI and an `@ObservableObject` permissions manager (live status)."))
+                techRow("Accessibility (AX) API", L10n.tr(
+                    "Odaktaki pencerenin meta verisini güvenli okumak için.",
+                    "To safely read the focused window's metadata."))
+                techRow("Core Graphics + CGEvent", L10n.tr(
+                    "Yakalanan karelerin render'ı ve etkileşim modunda olay enjeksiyonu.",
+                    "Frame rendering and event injection for interaction mode."))
+                techRow("Carbon HotKey API", L10n.tr(
+                    "Sistem genelinde global kısayollar (`RegisterEventHotKey`).",
+                    "System-wide global hotkeys (`RegisterEventHotKey`)."))
+                techRow("VideoToolbox", L10n.tr(
+                    "`CVPixelBuffer → CGImage` dönüşümü (`VTCreateCGImageFromCVPixelBuffer`).",
+                    "`CVPixelBuffer → CGImage` conversion (`VTCreateCGImageFromCVPixelBuffer`)."))
             }
             
-            sectionTitle("Gizlilik")
-            Text("""
-                 Mirror Top **hiçbir veriyi internete göndermez**, telemetri toplamaz. \
-                 Yakalanan tüm kareler yalnızca yerel olarak panele render edilir.
-                 """)
+            sectionTitle(Strings.hwPrivacyTitle)
+            Text(Strings.hwPrivacyBody)
         }
     }
-    
-    // MARK: Kısayollar
     
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            sectionTitle("Klavye Kısayolları")
-            shortcutRow(keys: ["⌘", "⌥", "T"],
-                        title: "Yansıtmayı Aç / Kapat",
-                        desc: "Şu anda odakta olan pencereyi yansıtmaya başlar; tekrar basınca kapatır.")
-            shortcutRow(keys: ["⌘", "⌥", "I"],
-                        title: "Etkileşim Modu",
-                        desc: "Yansıtma açıkken; panele tıklayıp yazmayı orijinal pencereye iletir.")
-            
-            sectionTitle("İpuçları")
+            sectionTitle(L10n.tr("Klavye Kısayolları", "Keyboard Shortcuts"))
+            shortcutRow(keys: ["⌘", "⌥", "T"], title: Strings.scToggleTitle, desc: Strings.scToggleDesc)
+            shortcutRow(keys: ["⌘", "⌥", "I"], title: Strings.scInteractionTitle, desc: Strings.scInteractionDesc)
+            sectionTitle(Strings.scTipsTitle)
             VStack(alignment: .leading, spacing: 10) {
-                bullet("Yansıtmadan **önce** istediğiniz pencereyi tıklayıp aktif hâle getirin.")
-                bullet("Etkileşim Modu açıkken paneli sürüklemek yerine **başlık çubuğunu** kullanın.")
-                bullet("Birden fazla monitör varsa panel açıldığı ekranda kalır; sürükleyerek taşıyabilirsiniz.")
-                bullet("Yansıtma kalitesi düşerse hedef pencereyi biraz büyütüp tekrar deneyin.")
+                bullet(Strings.scTip1)
+                bullet(Strings.scTip2)
+                bullet(Strings.scTip3)
+                bullet(Strings.scTip4)
             }
         }
     }
     
-    // MARK: Künye
-    
     private var creditsSection: some View {
         VStack(alignment: .leading, spacing: 22) {
-            sectionTitle("Geliştirici")
+            sectionTitle(Strings.crDeveloper)
             VStack(alignment: .leading, spacing: 8) {
-                infoRow(icon: "person.fill", label: "Ad Soyad", value: AppInfo.developerName)
-                infoRow(icon: "envelope.fill", label: "E-posta",
+                infoRow(icon: "person.fill", label: Strings.crName, value: AppInfo.developerName)
+                infoRow(icon: "envelope.fill", label: Strings.crEmail,
                         value: AppInfo.developerEmail,
                         link: "mailto:\(AppInfo.developerEmail)")
-                infoRow(icon: "link", label: "GitHub",
+                infoRow(icon: "link", label: Strings.crGithub,
                         value: AppInfo.developerGithub,
                         link: AppInfo.developerGithub)
             }
             
-            sectionTitle("Proje")
+            sectionTitle(Strings.crProject)
             VStack(alignment: .leading, spacing: 8) {
-                infoRow(icon: "app.badge", label: "Proje Adı", value: AppInfo.projectName)
-                infoRow(icon: "tag.fill", label: "Versiyon",
+                infoRow(icon: "app.badge", label: Strings.crProjectName, value: AppInfo.projectName)
+                infoRow(icon: "tag.fill", label: Strings.crVersion,
                         value: "\(AppInfo.version) \(AppInfo.stage)")
-                infoRow(icon: "swift", label: "Teknoloji",
+                infoRow(icon: "swift", label: Strings.crTechnology,
                         value: "Swift • SwiftUI • AppKit • ScreenCaptureKit")
-                infoRow(icon: "link", label: "GitHub",
+                infoRow(icon: "link", label: Strings.crGithub,
                         value: AppInfo.projectGithub,
                         link: AppInfo.projectGithub)
             }
             
-            sectionTitle("Geliştirme Sürecinde Kullanılan Yapay Zekâlar")
+            sectionTitle(Strings.crAITitle)
             VStack(alignment: .leading, spacing: 6) {
-                aiRow("Gemini 3 (Hızlı)", role: "Planlama")
-                aiRow("Gemini 3.1 Pro (High)", role: "Analiz, Başlangıç Geliştirme")
-                aiRow("Claude Opus 4.7", role: "Finalize, Bug Çözümleme, Arayüz Tasarımı")
+                aiRow("Gemini 3 (Hızlı)",      role: Strings.crAIRolePlanning)
+                aiRow("Gemini 3.1 Pro (High)", role: Strings.crAIRoleAnalysis)
+                aiRow("Claude Opus 4.7",       role: Strings.crAIRoleFinalize)
             }
             
-            Text("© \(Calendar.current.component(.year, from: Date())) \(AppInfo.developerName) — Açık kaynak.")
+            Text("© \(Calendar.current.component(.year, from: Date())) \(AppInfo.developerName) — \(Strings.crOpenSourceFooter)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 6)
         }
     }
     
-    // MARK: - Footer
-    
     private var footer: some View {
         HStack(spacing: 12) {
             Link(destination: URL(string: AppInfo.projectGithub)!) {
-                Label("GitHub'da Aç", systemImage: "link")
-            }
-            .buttonStyle(.bordered)
-            
+                Label(Strings.openOnGithub, systemImage: "link")
+            }.buttonStyle(.bordered)
             Link(destination: URL(string: "mailto:\(AppInfo.developerEmail)")!) {
-                Label("Geri Bildirim", systemImage: "envelope")
-            }
-            .buttonStyle(.bordered)
-            
+                Label(Strings.feedback, systemImage: "envelope")
+            }.buttonStyle(.bordered)
             Spacer()
-            
-            Button("Kapat") { onClose() }
+            Button(Strings.close) { onClose() }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-        }
-        .padding(16)
+        }.padding(16)
     }
     
     // MARK: - Helpers
     
     private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.headline)
-            .padding(.top, 4)
+        Text(text).font(.headline).padding(.top, 4)
     }
     
     private func bullet(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.tint)
-                .font(.callout)
-                .padding(.top, 2)
+                .foregroundStyle(.tint).font(.callout).padding(.top, 2)
             Text(text)
         }
     }
@@ -316,9 +280,7 @@ public struct AboutView: View {
                 .background(Circle().fill(Color.accentColor))
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.subheadline.bold())
-                Text(desc)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Text(desc).font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -330,9 +292,7 @@ public struct AboutView: View {
                 .font(.callout.bold().monospaced())
                 .frame(width: 170, alignment: .leading)
                 .foregroundStyle(.tint)
-            Text(desc)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            Text(desc).font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -341,21 +301,14 @@ public struct AboutView: View {
         HStack(alignment: .top, spacing: 14) {
             HStack(spacing: 4) {
                 ForEach(keys, id: \.self) { k in
-                    Text(k)
-                        .font(.callout.bold().monospaced())
+                    Text(k).font(.callout.bold().monospaced())
                         .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(nsColor: .controlBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1)
-                        )
+                        .background(RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(nsColor: .controlBackgroundColor)))
+                        .overlay(RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1))
                 }
-            }
-            .frame(width: 130, alignment: .leading)
-            
+            }.frame(width: 130, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.bold())
                 Text(desc).font(.callout).foregroundStyle(.secondary)
@@ -365,16 +318,11 @@ public struct AboutView: View {
     
     private func infoRow(icon: String, label: String, value: String, link: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: icon)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
-            Text(label)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .leading)
+            Image(systemName: icon).frame(width: 18).foregroundStyle(.secondary)
+            Text(label).font(.callout).foregroundStyle(.secondary)
+                .frame(width: 110, alignment: .leading)
             if let link, let url = URL(string: link) {
-                Link(value, destination: url)
-                    .font(.callout)
+                Link(value, destination: url).font(.callout)
             } else {
                 Text(value).font(.callout)
             }
@@ -384,12 +332,146 @@ public struct AboutView: View {
     
     private func aiRow(_ name: String, role: String) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(.tint)
+            Image(systemName: "sparkles").foregroundStyle(.tint)
             Text(name).font(.callout.bold())
             Text("—").foregroundStyle(.secondary)
             Text(role).font(.callout).foregroundStyle(.secondary)
             Spacer()
+        }
+    }
+}
+
+// MARK: - Settings Section
+
+private struct SettingsSection: View {
+    @ObservedObject private var settings = SettingsManager.shared
+    @ObservedObject private var updates  = UpdateChecker.shared
+    @State private var resetMessage: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            // Dil
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Strings.settingsLanguage).font(.headline)
+                Picker(selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                } label: { EmptyView() }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 380)
+                Text(Strings.settingsLanguageHint)
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            
+            Divider()
+            
+            // Güncellemeler
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Strings.settingsUpdates).font(.headline)
+                Toggle(Strings.settingsAutoUpdateLabel, isOn: $settings.autoUpdateCheck)
+                Text(Strings.settingsAutoUpdateHint)
+                    .font(.callout).foregroundStyle(.secondary)
+                
+                HStack(spacing: 10) {
+                    Button {
+                        Task { _ = await updates.check() }
+                    } label: {
+                        if updates.isChecking {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text(Strings.settingsCheckingNow)
+                            }
+                        } else {
+                            Label(Strings.settingsCheckNow, systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(updates.isChecking)
+                    
+                    Spacer()
+                    
+                    Text("\(Strings.settingsLastChecked): \(formattedLastCheck)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                
+                updateResultView
+            }
+            
+            Divider()
+            
+            // İzinler
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Strings.settingsPermsTitle).font(.headline)
+                Text(Strings.settingsResetTCCHint)
+                    .font(.callout).foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    Button {
+                        PermissionResetHelper.resetAllPermissions()
+                        resetMessage = Strings.settingsResetDone
+                    } label: {
+                        Label(Strings.settingsResetTCC, systemImage: "arrow.counterclockwise.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    if let msg = resetMessage {
+                        Label(msg, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green).font(.callout)
+                    }
+                }
+            }
+        }
+    }
+    
+    private var formattedLastCheck: String {
+        guard let d = settings.lastUpdateCheck else { return Strings.settingsNever }
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f.string(from: d)
+    }
+    
+    @ViewBuilder
+    private var updateResultView: some View {
+        if let result = updates.lastResult {
+            switch result {
+            case .upToDate(let current):
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+                    Text("\(Strings.settingsUpToDate) (\(current))")
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.10)))
+                
+            case .updateAvailable(let info):
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles").foregroundStyle(.orange)
+                        Text(Strings.settingsUpdateAvailable).bold()
+                    }
+                    Text("\(Strings.settingsLatestVersion): \(info.latestVersion)  ·  \(Strings.crVersion): \(info.currentVersion)")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Button {
+                        UpdateChecker.shared.openLatestReleasePage()
+                    } label: {
+                        Label(Strings.settingsViewRelease, systemImage: "arrow.up.right.square")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                
+            case .failed(let message):
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Text("\(Strings.settingsCheckFailed) (\(message))").font(.callout)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.10)))
+            }
         }
     }
 }

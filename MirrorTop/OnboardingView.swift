@@ -2,14 +2,11 @@ import SwiftUI
 import AppKit
 
 /// İlk açılışta gösterilen modern izin onboarding penceresi.
-/// `PermissionsManager`'ı izleyerek kullanıcı Sistem Ayarları'nda izin verdiği anda
-/// kart durumunu canlı günceller ve "Devam Et" butonunu aktive eder.
 public struct OnboardingView: View {
     @ObservedObject private var permissions = PermissionsManager.shared
+    @ObservedObject private var settings = SettingsManager.shared
     
-    /// İzinler tamamlandığında kapat butonuna basıldığında çağrılır.
     public var onContinue: () -> Void
-    /// "?" butonuna basıldığında Hakkında / Yardım penceresini aç.
     public var onShowHelp: (() -> Void)?
     
     public init(onContinue: @escaping () -> Void,
@@ -25,33 +22,31 @@ public struct OnboardingView: View {
             VStack(spacing: 16) {
                 PermissionCard(
                     icon: "accessibility",
-                    title: "Erişilebilirlik",
-                    subtitle: "Odaktaki pencereyi okumak ve etkileşim modunda fare/klavye olaylarını yönlendirmek için.",
+                    title: Strings.permAccessibility,
+                    subtitle: Strings.permAccessibilityDesc,
                     granted: permissions.accessibilityGranted,
                     grantAction: { permissions.requestAccessibility() }
                 )
                 PermissionCard(
                     icon: "rectangle.dashed.badge.record",
-                    title: "Ekran Kaydı",
-                    subtitle: "Pencereyi yakalayıp şeffaf panele yansıtmak için (ScreenCaptureKit).",
+                    title: Strings.permScreen,
+                    subtitle: Strings.permScreenDesc,
                     granted: permissions.screenRecordingGranted,
                     grantAction: { permissions.requestScreenRecording() }
                 )
             }
             .padding(24)
-            
             Divider()
             footer
         }
-        .frame(width: 520)
+        .frame(width: 540)
         .fixedSize(horizontal: true, vertical: true)
+        .id(settings.language.rawValue)
         .onAppear {
             permissions.refresh()
             permissions.startPolling()
         }
-        .onDisappear {
-            permissions.stopPolling()
-        }
+        .onDisappear { permissions.stopPolling() }
     }
     
     private var header: some View {
@@ -61,9 +56,8 @@ public struct OnboardingView: View {
                     .font(.system(size: 44, weight: .light))
                     .foregroundStyle(.tint)
                     .padding(.top, 24)
-                Text("Mirror Top'a Hoş Geldiniz")
-                    .font(.title2).bold()
-                Text("Herhangi bir pencereyi “Always on Top” yapmak için iki izne ihtiyacımız var.")
+                Text(Strings.onboardingTitle).font(.title2).bold()
+                Text(Strings.onboardingSubtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -78,7 +72,7 @@ public struct OnboardingView: View {
                         .font(.system(size: 18, weight: .regular))
                 }
                 .buttonStyle(.borderless)
-                .help("Nasıl çalışır? — Yardım & Hakkında")
+                .help(Strings.helpTooltip)
                 .padding(.top, 14)
                 .padding(.trailing, 14)
             }
@@ -88,19 +82,15 @@ public struct OnboardingView: View {
     private var footer: some View {
         HStack {
             if permissions.allGranted {
-                Label("Tüm izinler verildi", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                    .font(.callout)
+                Label(Strings.permAllGranted, systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green).font(.callout)
             } else {
-                Label("İzin bekleniyor…", systemImage: "hourglass")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
+                Label(Strings.permWaiting, systemImage: "hourglass")
+                    .foregroundStyle(.secondary).font(.callout)
             }
             Spacer()
-            Button {
-                onContinue()
-            } label: {
-                Text(permissions.allGranted ? "Başla" : "Daha Sonra")
+            Button { onContinue() } label: {
+                Text(permissions.allGranted ? Strings.start : Strings.later)
                     .frame(minWidth: 90)
             }
             .keyboardShortcut(.defaultAction)
@@ -141,8 +131,8 @@ private struct PermissionCard: View {
             Spacer()
             
             Button(action: grantAction) {
-                Text(granted ? "Ayarları Aç" : "İzin Ver")
-                    .frame(minWidth: 80)
+                Text(granted ? Strings.permOpenSettings : Strings.permGrant)
+                    .frame(minWidth: 90)
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
@@ -164,14 +154,11 @@ private struct StatusBadge: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-            Text(granted ? "Verildi" : "Eksik")
+            Text(granted ? Strings.permGranted : Strings.permMissing)
         }
         .font(.caption.bold())
-        .padding(.horizontal, 7)
-        .padding(.vertical, 2)
-        .background(
-            Capsule().fill((granted ? Color.green : Color.orange).opacity(0.18))
-        )
+        .padding(.horizontal, 7).padding(.vertical, 2)
+        .background(Capsule().fill((granted ? Color.green : Color.orange).opacity(0.18)))
         .foregroundStyle(granted ? Color.green : Color.orange)
     }
 }
