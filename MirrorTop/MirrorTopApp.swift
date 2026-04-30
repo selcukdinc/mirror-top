@@ -134,14 +134,14 @@ struct MirrorTopApp: App {
     
     var body: some Scene {
         MenuBarExtra {
-            MenuBarContent(showOnboarding: { appDelegate.showOnboarding() })
-                .environmentObject(permissions)
-        } label: {
-            Image(systemNam
+            MenuBarContent(
                 showOnboarding: { appDelegate.showOnboarding() },
                 showAbout: { appDelegate.showAbout() }
             )
-    }
+            .environmentObject(permissions)
+        } label: {
+            Image(systemName: "rectangle.on.rectangle.angled")
+        }
         .menuBarExtraStyle(.menu)
     }
 }
