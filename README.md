@@ -43,9 +43,21 @@ The result feels indistinguishable from a real Always-on-Top mode, but it requir
 
 ### Install
 
-1. Download the latest `MirrorTop.app` from [Releases](../../releases) (or build from source — see below).
-2. Drag it into `/Applications`.
+1. Download the latest `MirrorTop-<version>.dmg` from [Releases](../../releases).
+2. Open the DMG and drag **MirrorTop.app** into `/Applications`.
 3. Launch it. It will appear in the menu bar (`⊞ on ⊞` icon, top right).
+
+> **First-launch Gatekeeper warning** *(only while we're pre-Apple-Developer-Program)*
+>
+> Because alpha builds are not yet **notarized** by Apple, macOS may show *"MirrorTop can't be opened because Apple cannot check it for malicious software"* on first launch. This is a Gatekeeper formality, not a real warning about the app. Two ways through it:
+>
+> - **Easy:** Right-click `MirrorTop.app` in Finder → **Open** → click **Open** again. macOS remembers this; subsequent launches work normally.
+> - **One-liner:** Strip the quarantine attribute in Terminal:
+>   ```bash
+>   xattr -dr com.apple.quarantine /Applications/MirrorTop.app
+>   ```
+>
+> Once the project enrolls in the Apple Developer Program, releases will be signed and notarized; this warning will disappear.
 
 ### First-Run Permissions
 
@@ -215,18 +227,48 @@ For the update checker to detect a release, **all** of the following must be tru
 ### One-shot packaging
 
 ```bash
-# Builds Release archive → exports .app → produces dist/MirrorTop-<version>.dmg
+# Builds Release archive → exports .app → ad-hoc signs → produces dist/MirrorTop-<version>.dmg
 ./Scripts/make-release.sh
 
-# With Developer ID signing + Apple notarization (requires keychain profile):
-xcrun notarytool store-credentials MT_NOTARY    # one-time setup
+# With Developer ID signing + Apple notarization (requires paid Developer Program):
+xcrun notarytool store-credentials MT_NOTARY \
+    --key ~/Downloads/AuthKey_XXXXXXXXXX.p8 \
+    --key-id XXXXXXXXXX \
+    --issuer 12345678-aaaa-bbbb-cccc-1234567890ab
 export MT_NOTARY_PROFILE=MT_NOTARY
 ./Scripts/make-release.sh --notarize
 ```
 
 The script reads `MARKETING_VERSION` from `project.pbxproj` and produces `dist/MirrorTop-<version>.dmg`. If `create-dmg` (Homebrew) is installed, you get a polished installer window; otherwise it falls back to a plain `hdiutil`-built dmg with an `Applications` symlink.
 
+When `--notarize` is **not** passed, the build is **ad-hoc signed** (`codesign --sign -`). This downgrades the Gatekeeper prompt from *"…will damage your Mac"* to *"…cannot be checked for malicious software"*, which users can bypass with right-click → Open. Always include the unsigned-install instructions from the [Install section](#install) in your release notes until you obtain a Developer ID.
+
+### Release notes template (unsigned builds)
+
+```markdown
+## What's new
+- ...
+
+## Installation
+This is an alpha build, not yet notarized by Apple.
+- Right-click MirrorTop.app → **Open** → **Open** again, **or**
+- Run: `xattr -dr com.apple.quarantine /Applications/MirrorTop.app`
+```
+
 ### Publishing the release
+
+The fastest path is the all-in-one script:
+
+```bash
+./Scripts/publish-release.sh                # ad-hoc signed → tag → push → gh release create
+./Scripts/publish-release.sh --notarize     # same, but with Apple notarization
+./Scripts/publish-release.sh --dry-run      # show what would happen, do nothing
+./Scripts/publish-release.sh --skip-build   # reuse existing dist/MirrorTop-<v>.dmg
+```
+
+The script reads the latest `MARKETING_VERSION`, commits the bumped `project.pbxproj`, tags `vX.Y.Z`, pushes the branch + tag, and uploads the DMG via `gh release create` with a sensible default notes template (including the unsigned-install instructions when applicable).
+
+### Manual flow (if you prefer step-by-step)
 
 ```bash
 VERSION=$(grep -m1 'MARKETING_VERSION = ' MirrorTop.xcodeproj/project.pbxproj \

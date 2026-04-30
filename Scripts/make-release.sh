@@ -35,6 +35,13 @@ for arg in "$@"; do
     esac
 done
 
+# xcpretty varsa kullan, yoksa cat. (xcpretty isteğe bağlı, kurulu olmayabilir.)
+if command -v xcpretty >/dev/null 2>&1; then
+    PRETTY="xcpretty"
+else
+    PRETTY="cat"
+fi
+
 # === Versiyonu pbxproj'tan oku ===
 VERSION=$(grep -m1 "MARKETING_VERSION = " "${PROJECT}/project.pbxproj" \
     | sed -E 's/.*MARKETING_VERSION = ([^;]+);.*/\1/' | tr -d ' ')
@@ -52,17 +59,25 @@ xcodebuild \
     -configuration Release \
     -destination "generic/platform=macOS" \
     -archivePath "${ARCHIVE_PATH}" \
-    archive | xcpretty || true
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO \
+    archive | $PRETTY
 
 if [[ ! -d "${ARCHIVE_PATH}" ]]; then
     echo "HATA: Archive oluşmadı."
     exit 1
 fi
 
-# === 2. Export ===
-echo "==> .app export ediliyor…"
-EXPORT_PLIST="${BUILD_DIR}/ExportOptions.plist"
-cat > "${EXPORT_PLIST}" <<EOF
+# === 2. .app'i archive'dan al ===
+# Notarize edilmeyecekse exportArchive'a (Developer ID gerektirir) ihtiyacımız yok;
+# .app'i archive içinden doğrudan kopyalıyoruz.
+APP_PATH="${EXPORT_DIR}/${APP_NAME}.app"
+
+if $NOTARIZE; then
+    echo "==> .app export ediliyor (developer-id)…"
+    EXPORT_PLIST="${BUILD_DIR}/ExportOptions.plist"
+    cat > "${EXPORT_PLIST}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -74,16 +89,33 @@ cat > "${EXPORT_PLIST}" <<EOF
 </dict>
 </plist>
 EOF
+    xcodebuild -exportArchive \
+        -archivePath "${ARCHIVE_PATH}" \
+        -exportPath "${EXPORT_DIR}" \
+        -exportOptionsPlist "${EXPORT_PLIST}" | $PRETTY
+else
+    echo "==> .app archive içinden kopyalanıyor (Developer ID yok, ad-hoc imza kullanılacak)…"
+    ARCHIVE_APP="${ARCHIVE_PATH}/Products/Applications/${APP_NAME}.app"
+    if [[ ! -d "${ARCHIVE_APP}" ]]; then
+        echo "HATA: Archive içinde .app bulunamadı: ${ARCHIVE_APP}"
+        exit 1
+    fi
+    cp -R "${ARCHIVE_APP}" "${APP_PATH}"
+fi
 
-xcodebuild -exportArchive \
-    -archivePath "${ARCHIVE_PATH}" \
-    -exportPath "${EXPORT_DIR}" \
-    -exportOptionsPlist "${EXPORT_PLIST}" | xcpretty || true
-
-APP_PATH="${EXPORT_DIR}/${APP_NAME}.app"
 if [[ ! -d "${APP_PATH}" ]]; then
     echo "HATA: ${APP_PATH} bulunamadı."
     exit 1
+fi
+
+# === 2.5. Ad-hoc imzalama (paid Developer Program üyeliği yoksa fallback) ===
+# Eğer notarize edilmeyecekse en azından ad-hoc (`-`) imza ile "zarar verebilir"
+# uyarısını "kimliği doğrulanamadı" seviyesine düşürürüz; kullanıcı sağ-tık → Aç ile geçer.
+if ! $NOTARIZE; then
+    echo "==> Ad-hoc imzalama uygulanıyor (notarize devre dışı)…"
+    /usr/bin/codesign --force --deep --sign - "${APP_PATH}"
+    echo "    → imza doğrulanıyor:"
+    /usr/bin/codesign --verify --verbose=2 "${APP_PATH}" || true
 fi
 
 # === 3. (Opsiyonel) Notarize ===
@@ -147,6 +179,20 @@ fi
 echo ""
 echo "✅ Hazır: ${DMG_PATH}"
 echo ""
+
+if ! $NOTARIZE; then
+    cat <<EOF
+⚠️  Bu build notarize EDİLMEDİ (yalnızca ad-hoc imzalı).
+    Kullanıcılar ilk açışta Gatekeeper uyarısı görecek. README'deki
+    "Installation (unsigned build)" bölümündeki talimatları release
+    notlarına eklemeyi unutma:
+
+      • Sağ tık → Aç → tekrar Aç (tek seferlik onay)
+      • Veya:  xattr -dr com.apple.quarantine /Applications/MirrorTop.app
+
+EOF
+fi
+
 echo "Sonraki adımlar:"
 echo "  1) git tag v${VERSION} && git push origin v${VERSION}"
 echo "  2) gh release create v${VERSION} \"${DMG_PATH}\" \\"
