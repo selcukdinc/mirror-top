@@ -9,9 +9,17 @@
 
 set -euo pipefail
 
-# SwiftUI Preview / index build durumlarında atla (sürekli artışı önle).
+# SwiftUI Preview / index build durumlarında atla.
 if [[ "${ENABLE_PREVIEWS:-NO}" == "YES" ]] || [[ "${ACTION:-}" == "indexbuild" ]]; then
     echo "MirrorTop: preview/index build, version bump atlandı."
+    exit 0
+fi
+
+# Sadece Release config'inde versiyon artır.
+# Debug build'lerde pbxproj'u her seferinde değiştirmek Xcode'un "project changed during build"
+# uyarısıyla build'i iptal etmesine yol açar.
+if [[ "${CONFIGURATION:-}" != "Release" ]]; then
+    echo "MirrorTop: ${CONFIGURATION:-?} config — version bump yalnızca Release'de çalışır, atlandı."
     exit 0
 fi
 
@@ -30,8 +38,11 @@ if [[ -z "$CURRENT" ]]; then
     exit 0
 fi
 
-# 0.0.1 formatı bekleniyor; aksi halde dokunma.
-if [[ ! "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+# X.Y.Z formatı bekleniyor; X.Y geldiyse otomatik X.Y.0 olarak normalize et.
+if [[ "$CURRENT" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "MirrorTop: MARKETING_VERSION ($CURRENT) iki bileşenli, ${CURRENT}.0 olarak normalize ediliyor."
+    CURRENT="${CURRENT}.0"
+elif [[ ! "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "warning: MARKETING_VERSION format dışı ($CURRENT), atlanıyor."
     exit 0
 fi

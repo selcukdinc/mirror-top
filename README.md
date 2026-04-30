@@ -185,7 +185,7 @@ Make sure the **same window** is still focused when you press `⌘⌥T` to toggl
 - [x] Customizable global shortcuts (persisted across updates)
 - [x] GitHub Releases update checker (opt-in)
 - [x] In-app TCC permission reset helper
-- [x] Auto-incrementing patch version on every build (`Scripts/bump-version.sh`)
+- [x] Auto-incrementing patch version on every **Release** build (`Scripts/bump-version.sh`)
 
 **Next up:**
 - [ ] **Dock-mode** — a grid view of every active mirror, surfaced from the Dock with trackpad pinch-zoom to scale the grid density. Hover-actions per cell (configure / toggle / remove). See [CLAUDE.md § 7](CLAUDE.md) for the full vision.
@@ -196,6 +196,55 @@ Make sure the **same window** is still focused when you press `⌘⌥T` to toggl
 - [ ] Optional click-through dimming when not focused
 
 PRs welcome — see [CONTRIBUTING](#-contributing) below.
+
+---
+
+## 📦 Releasing (maintainers)
+
+MirrorTop ships as a `.dmg` attached to a GitHub Release. The in-app `UpdateChecker` polls `api.github.com/repos/<owner>/<repo>/releases/latest` and surfaces a notification when a newer version is published.
+
+### Contract
+
+For the update checker to detect a release, **all** of the following must be true:
+
+1. **Tag name is semver.** Either `v0.0.2` or `0.0.2` works (the `v` prefix is stripped automatically).
+2. **Tag matches `MARKETING_VERSION`** in `project.pbxproj` for that build, otherwise users are pointed at a stale release.
+3. **The release is published, not draft, not pre-release.** Drafts and pre-releases are skipped (treated as "up to date").
+4. **A `.dmg` is attached as an asset.** The checker doesn't auto-download, but it deep-links users to the release page where they pick the asset.
+
+### One-shot packaging
+
+```bash
+# Builds Release archive → exports .app → produces dist/MirrorTop-<version>.dmg
+./Scripts/make-release.sh
+
+# With Developer ID signing + Apple notarization (requires keychain profile):
+xcrun notarytool store-credentials MT_NOTARY    # one-time setup
+export MT_NOTARY_PROFILE=MT_NOTARY
+./Scripts/make-release.sh --notarize
+```
+
+The script reads `MARKETING_VERSION` from `project.pbxproj` and produces `dist/MirrorTop-<version>.dmg`. If `create-dmg` (Homebrew) is installed, you get a polished installer window; otherwise it falls back to a plain `hdiutil`-built dmg with an `Applications` symlink.
+
+### Publishing the release
+
+```bash
+VERSION=$(grep -m1 'MARKETING_VERSION = ' MirrorTop.xcodeproj/project.pbxproj \
+            | sed -E 's/.*MARKETING_VERSION = ([^;]+);.*/\1/' | tr -d ' ')
+
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
+
+gh release create "v${VERSION}" "dist/MirrorTop-${VERSION}.dmg" \
+    --title "MirrorTop ${VERSION}" \
+    --notes "## What's new\n- ..."
+```
+
+After publishing, users with **auto-update on launch** enabled (or anyone clicking *Şimdi Kontrol Et*) will see the new version on their next check.
+
+### Version bump cadence
+
+Patch numbers (`0.0.X`) bump automatically only on **Release** builds via `Scripts/bump-version.sh`. To intentionally bump minor or major, edit `MARKETING_VERSION` in `project.pbxproj` directly before tagging.
 
 ---
 
