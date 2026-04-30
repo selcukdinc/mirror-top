@@ -17,6 +17,7 @@ Icon?
 # Xcode — build çıktıları
 # ---------------------------------------------------------------------------
 build/
+dist/
 DerivedData/
 *.xcuserstate
 *.xcuserdatad/
