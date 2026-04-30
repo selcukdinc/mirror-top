@@ -86,3 +86,60 @@ Bu commit'te aşağıdaki düzeltmeler yapıldı:
 - Birden fazla pencerenin aynı anda yansıtılması (multi-mirror).
 - Hot-corner veya doğrudan `NSStatusItem` ile manuel pencere seçimi (kısayol gerektirmeden).
 - Kullanıcının panel boyut/konumunu pencere ID'sine göre hatırlama (`UserDefaults`).
+
+## 7. Dock Modu — Gelecek Vizyon
+
+> Bu bölüm, ilerideki "Dock-mode" özelliğinin tasarım dili ve davranış sözleşmesini belgeler. Her güncellemede bu vizyonun **tutarlılığı** korunmalıdır.
+
+### 7.1 Konsept
+
+Dock'tan ulaşılan, Mission Control benzeri bir **grid görünüm**: o anda aktif olan tüm yansıtmaların (mirror) küçük önizlemeleri. Kullanıcı uzaklaşıp yakınlaştıkça (trackpad pinch-zoom) grid yoğunluğu dinamik olarak değişir — daha çok uzaklaşma = daha fazla hücre, daha az uzaklaşma = daha büyük hücreler.
+
+### 7.2 Etkileşimler
+
+- **Pinch-zoom (out → in):** grid `2×2 → 3×3 → 4×4 → ...` şeklinde dinamik yoğunluk değiştirir; animasyon yumuşak (`.spring`).
+- **Hover bir hücrenin üzerinde:** o hücrenin sağ-üst köşesinde üç buton belirir:
+  - **Ayarla** (configure): per-window özelleştirme paneli (FPS, kayıt kapsamı, vb.).
+  - **Yansıt / Aktif Et:** önizlemeyi tek başına `FloatingPanel` olarak getir.
+  - **Kaldır:** yansıtmayı sonlandır.
+- **Çift tıklama:** hücreyi tam ekran/floating panel olarak öne çıkarır.
+- **Sürükle-bırak:** grid içinde hücre yeniden sıralanabilir; sıra UserDefaults'a kaydedilir.
+
+### 7.3 Persistans (UserDefaults)
+
+Her yansıtılan pencere için kullanıcı kararı sorulur ve kalıcılaştırılır:
+
+| Kapsam | Anahtar Şablonu |
+|---|---|
+| Sadece bu dosya/dosya yolu için | `mt.layout.window.<bundleID>.<windowTitleHash>` |
+| Tüm uygulama (örn. tüm TextEdit pencereleri için) | `mt.layout.app.<bundleID>` |
+| Tüm uygulamalar için varsayılan | `mt.layout.global` |
+
+Karar diyalogu üç buton sunar: **"Sadece bu pencere"**, **"Bu uygulamadaki tüm pencereler"**, **"Tüm uygulamalar"**.
+
+Saklanan bilgi: panel pozisyonu (`NSPoint`), boyutu (`NSSize`), grid içindeki sıra, per-window FPS override, etkileşim modu varsayılanı.
+
+### 7.4 FPS Yönetimi
+
+- **Per-window FPS override** (opsiyonel): her hücre için 30/60/120 vb. değerlerden seçilebilir.
+- **Genel FPS ayarı** (Settings → Performance): tüm yansıtmalar için varsayılan FPS.
+- Genel FPS değiştirildiğinde **"Tüm özel FPS değerlerini bu yeni değerle override et"** onay butonu gösterilir; basılırsa tüm window-specific UserDefaults override'ları temizlenir.
+
+### 7.5 Tasarım Dili Tutarlılığı
+
+Dock-mode geliyor olsa da mevcut tasarım kodları **korunmak zorundadır**:
+
+- ✅ SwiftUI tab'lı sidebar yapısı (`AboutView`'daki gibi).
+- ✅ Accent color tonları (sistem accent'i takip eder).
+- ✅ Monospaced kısayol görselleri (`⌘⌥T` her yerde aynı stil).
+- ✅ Köşe yarıçapları: kart `12pt`, küçük rozet `6pt`, buton `8pt`.
+- ✅ İzin kartlarındaki "status badge" patterni → grid hücre durumu için de kullanılacak.
+- ✅ Lokalizasyon: tüm yeni metinler `L10n.tr(turkish, english)` üzerinden geçecek; `Strings` namespace'ine eklenecek.
+- ✅ TCC reset / Settings entegrasyonu Dock-mode panelinde de erişilebilir olmalı.
+
+### 7.6 Mimari Notlar
+
+- Yeni `MirrorRegistry` (singleton) tüm aktif `StreamManager` örneklerini takip eder; Dock-mode bu registry'yi observe eder.
+- `StreamManager` çoklu instance destekleyecek şekilde refactor edilecek (şu an `shared` singleton).
+- Pinch-zoom için `NSEvent` `magnify` event'leri SwiftUI `MagnifyGesture` ile yakalanır.
+- Dock'tan açılma: ya `NSApp.dockTile` ile özel çizim, ya da `NSApp.activate(ignoringOtherApps: true)` + dedikated `NSWindow`.

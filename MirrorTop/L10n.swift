@@ -229,10 +229,22 @@ public enum Strings {
     public static var settingsLastChecked: String       { L10n.tr("Son kontrol", "Last checked") }
     public static var settingsNever: String             { L10n.tr("Hiç", "Never") }
     public static var settingsCheckFailed: String       { L10n.tr("Güncelleme kontrolü başarısız oldu.", "Update check failed.") }
+    public static var settingsNoReleases: String        { L10n.tr(
+        "GitHub'da henüz yayınlanmış bir sürüm bulunamadı.",
+        "No releases have been published on GitHub yet.") }
     public static var settingsPermsTitle: String        { L10n.tr("İzinler", "Permissions") }
     public static var settingsResetTCC: String          { L10n.tr("İzinleri Sıfırla", "Reset Permissions") }
     public static var settingsResetTCCHint: String      { L10n.tr(
         "Eski build'lerden kalan izinleri temizler. Tıkladıktan sonra Sistem Ayarları'ndan izinleri yeniden vermeniz gerekir.",
         "Clears stale permissions from previous builds. After clicking, you'll need to re-grant in System Settings.") }
     public static var settingsResetDone: String         { L10n.tr("Sıfırlandı. Sistem Ayarları'ndan izin verin.", "Reset done. Please re-grant in System Settings.") }
+    
+    // Settings → Shortcuts
+    public static var settingsShortcutsTitle: String    { L10n.tr("Kısayollar", "Shortcuts") }
+    public static var settingsShortcutsHint: String     { L10n.tr(
+        "Bu kısayolları dilediğiniz gibi değiştirebilirsiniz; tercihler güncellemeler arasında saklanır.",
+        "You can change these shortcuts freely; preferences are kept across updates.") }
+    public static var settingsShortcutCapture: String   { L10n.tr("Yansıtmayı Aç/Kapat", "Toggle Mirror") }
+    public static var settingsShortcutInteraction: String { L10n.tr("Etkileşim Modu", "Interaction Mode") }
+    public static var settingsShortcutsResetAll: String { L10n.tr("Tüm Kısayolları Varsayılana Döndür", "Reset All Shortcuts to Defaults") }
 }

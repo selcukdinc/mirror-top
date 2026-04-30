@@ -101,6 +101,8 @@ public struct AboutView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle()) // Tüm satır tıklanabilir olsun
                     .background(
                         RoundedRectangle(cornerRadius: 8)
                             .fill(selectedTab == tab ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -191,8 +193,10 @@ public struct AboutView: View {
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 18) {
             sectionTitle(L10n.tr("Klavye Kısayolları", "Keyboard Shortcuts"))
-            shortcutRow(keys: ["⌘", "⌥", "T"], title: Strings.scToggleTitle, desc: Strings.scToggleDesc)
-            shortcutRow(keys: ["⌘", "⌥", "I"], title: Strings.scInteractionTitle, desc: Strings.scInteractionDesc)
+            shortcutRow(keys: keyTokens(SettingsManager.shared.captureShortcut),
+                        title: Strings.scToggleTitle, desc: Strings.scToggleDesc)
+            shortcutRow(keys: keyTokens(SettingsManager.shared.interactionShortcut),
+                        title: Strings.scInteractionTitle, desc: Strings.scInteractionDesc)
             sectionTitle(Strings.scTipsTitle)
             VStack(alignment: .leading, spacing: 10) {
                 bullet(Strings.scTip1)
@@ -201,6 +205,23 @@ public struct AboutView: View {
                 bullet(Strings.scTip4)
             }
         }
+    }
+    
+    /// Shortcut'tan görsel tokenlar (her sembol bir ayrı kutu olarak görünsün).
+    private func keyTokens(_ s: Shortcut) -> [String] {
+        let display = s.displayString
+        var result: [String] = []
+        var current = ""
+        for ch in display {
+            if ["⌃", "⌥", "⇧", "⌘"].contains(String(ch)) {
+                if !current.isEmpty { result.append(current); current = "" }
+                result.append(String(ch))
+            } else {
+                current.append(ch)
+            }
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
     
     private var creditsSection: some View {
@@ -235,7 +256,9 @@ public struct AboutView: View {
                 aiRow("Claude Opus 4.7",       role: Strings.crAIRoleFinalize)
             }
             
-            Text("© \(Calendar.current.component(.year, from: Date())) \(AppInfo.developerName) — \(Strings.crOpenSourceFooter)")
+            // String(year) ile veriyoruz çünkü SwiftUI Text Int interpolasyonu locale'a göre
+            // "2.026" gibi bin ayraçlı format basıyor; string olarak göndererek formatlamayı engelliyoruz.
+            Text("© \(String(Calendar.current.component(.year, from: Date()))) \(AppInfo.developerName) — \(Strings.crOpenSourceFooter)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 6)
@@ -400,6 +423,39 @@ private struct SettingsSection: View {
             
             Divider()
             
+            // Kısayollar
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Strings.settingsShortcutsTitle).font(.headline)
+                Text(Strings.settingsShortcutsHint)
+                    .font(.callout).foregroundStyle(.secondary)
+                
+                HStack {
+                    Text(Strings.settingsShortcutCapture)
+                        .frame(width: 200, alignment: .leading)
+                    ShortcutRecorderView(shortcut: $settings.captureShortcut,
+                                         defaultValue: .defaultCapture)
+                    Spacer()
+                }
+                
+                HStack {
+                    Text(Strings.settingsShortcutInteraction)
+                        .frame(width: 200, alignment: .leading)
+                    ShortcutRecorderView(shortcut: $settings.interactionShortcut,
+                                         defaultValue: .defaultInteraction)
+                    Spacer()
+                }
+                
+                Button {
+                    settings.resetShortcutsToDefaults()
+                } label: {
+                    Label(Strings.settingsShortcutsResetAll, systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, 4)
+            }
+            
+            Divider()
+            
             // İzinler
             VStack(alignment: .leading, spacing: 10) {
                 Text(Strings.settingsPermsTitle).font(.headline)
@@ -463,6 +519,15 @@ private struct SettingsSection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
                 
+            case .noReleases:
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill").foregroundStyle(.blue)
+                    Text(Strings.settingsNoReleases).font(.callout)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.blue.opacity(0.10)))
+                
             case .failed(let message):
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
@@ -480,7 +545,14 @@ private struct SettingsSection: View {
 
 public enum AppInfo {
     public static let projectName     = "Mirror Top"
-    public static let version         = "0.0.1"
+    /// Bundle'dan dinamik okur — her build'de pbxproj'taki MARKETING_VERSION güncellenir.
+    public static var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    }
+    /// Bundle build numarası.
+    public static var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
     public static let stage           = "Alpha"
     public static let projectGithub   = "https://github.com/selcukdinc/mirror-top"
     

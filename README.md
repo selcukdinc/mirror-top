@@ -62,12 +62,15 @@ Click **“İzin Ver”** on each card; macOS will open the relevant Settings pa
 
 | Action | Shortcut |
 |---|---|
-| Toggle Always-on-Top mirror for the focused window | `⌘ + ⌥ + T` |
-| Toggle Interaction Mode for the active mirror | `⌘ + ⌥ + I` |
+| Toggle Always-on-Top mirror for the focused window | `⌘ + ⌥ + T` *(customizable)* |
+| Toggle Interaction Mode for the active mirror | `⌘ + ⌥ + I` *(customizable)* |
 | Open menu | Click the 🪞 icon in the menu bar |
+| Open About / Settings | *Hakkında* item in the menu → **Ayarlar** tab |
 | Quit | `⌘ + Q` (when menu bar item is open) |
 
 When Interaction Mode is **ON**, the mirrored panel shows a blue border, becomes clickable, and forwards every event to the original window — handy for keeping a video call, terminal, or notes pinned while typing somewhere else.
+
+> **Customizing shortcuts:** open the menu bar icon → *Hakkında* → **Ayarlar** → *Kısayollar* and click on a key field to record a new combination. Preferences are persisted across updates.
 
 ---
 
@@ -91,11 +94,18 @@ When Interaction Mode is **ON**, the mirrored panel shows a blue border, becomes
 
 | File | Responsibility |
 |---|---|
-| `MirrorTopApp.swift` | App entry point. `MenuBarExtra` scene + onboarding `NSWindow`. |
+| `MirrorTopApp.swift` | App entry point. `MenuBarExtra` scene + onboarding/about `NSWindow`s, dynamic activation policy. |
 | `PermissionsManager.swift` | Live-polled permission state for Accessibility + Screen Recording. |
+| `PermissionResetHelper.swift` | Wraps `tccutil reset All <bundleID>` for clearing stale TCC entries. |
 | `OnboardingView.swift` | Modern SwiftUI permission onboarding with status badges. |
-| `MenuBarContent.swift` | Menu bar dropdown items (mirror toggle, interaction toggle, about, quit). |
-| `GlobalHotkeyManager.swift` | Carbon `RegisterEventHotKey` for `⌘⌥T` and `⌘⌥I`. |
+| `AboutView.swift` | 5-tab About / Settings window (overview, how-it-works, shortcuts, settings, credits). |
+| `MenuBarContent.swift` | Menu bar dropdown items (mirror toggle, interaction toggle, shortcuts hint, about, quit). |
+| `GlobalHotkeyManager.swift` | Carbon `RegisterEventHotKey` with dynamic, user-customizable shortcuts and `reloadShortcuts()`. |
+| `Shortcut.swift` | Codable shortcut model + display formatter (`⌘⌥T`). |
+| `ShortcutRecorderView.swift` | SwiftUI control that captures the next key combo via local `NSEvent` monitor. |
+| `SettingsManager.swift` | Persistent user preferences (language, auto-update, customizable shortcuts) via `UserDefaults`. |
+| `UpdateChecker.swift` | GitHub Releases API check (default **off**); supports up-to-date / update available / no-releases / failed. |
+| `L10n.swift` | TR/EN localization helpers + central `Strings` namespace. |
 | `WindowManager.swift` | Resolves focused window via `AXUIElement`, falls back to `SCShareableContent` for `CGWindowID`. |
 | `StreamManager.swift` | `SCStream` lifecycle, frame routing, panel resize, silent auto-restart. |
 | `FloatingPanel.swift` | Transparent `.floating`-level `NSPanel`, all-spaces, native resize. |
@@ -170,12 +180,20 @@ Make sure the **same window** is still focused when you press `⌘⌥T` to toggl
 
 ## 🗺️ Roadmap
 
-- [ ] Multi-window mirroring (more than one panel at a time)
-- [ ] Persist panel position & size per source window (`UserDefaults`)
+**Already shipped (recent):**
+- [x] TR / EN localization (system / Turkish / English)
+- [x] Customizable global shortcuts (persisted across updates)
+- [x] GitHub Releases update checker (opt-in)
+- [x] In-app TCC permission reset helper
+- [x] Auto-incrementing patch version on every build (`Scripts/bump-version.sh`)
+
+**Next up:**
+- [ ] **Dock-mode** — a grid view of every active mirror, surfaced from the Dock with trackpad pinch-zoom to scale the grid density. Hover-actions per cell (configure / toggle / remove). See [CLAUDE.md § 7](CLAUDE.md) for the full vision.
+- [ ] Persist panel position & size per source window (`UserDefaults` keyed by app + window title)
+- [ ] Per-window FPS override + global FPS setting with bulk-apply
+- [ ] Multi-window mirroring (more than one panel at a time, foundation for Dock-mode)
 - [ ] Window picker in the menu bar (no hotkey required)
-- [ ] Configurable hotkeys (Settings UI)
 - [ ] Optional click-through dimming when not focused
-- [ ] Localization (currently TR/EN-mixed)
 
 PRs welcome — see [CONTRIBUTING](#-contributing) below.
 
@@ -192,7 +210,7 @@ PRs welcome — see [CONTRIBUTING](#-contributing) below.
 
 ## 📜 License
 
-MIT. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE) (file to be added with first public release).
 
 ---
 

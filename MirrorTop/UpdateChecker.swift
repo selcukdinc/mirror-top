@@ -19,6 +19,7 @@ public struct UpdateInfo: Equatable, Sendable {
 public enum UpdateCheckResult: Sendable {
     case upToDate(current: String)
     case updateAvailable(UpdateInfo)
+    case noReleases             // GitHub'da henüz hiç release yayınlanmamış (404)
     case failed(String)
 }
 
@@ -78,9 +79,9 @@ public final class UpdateChecker: ObservableObject {
                 return r
             }
             
-            // 404 → henüz hiç release yok. Bu hata değil, sadece "no release".
+            // 404 → henüz hiç release yok. Hata değil, ama "up-to-date" da değil — ayrı bir durum.
             if http.statusCode == 404 {
-                let r = UpdateCheckResult.upToDate(current: currentVersion)
+                let r = UpdateCheckResult.noReleases
                 lastResult = r
                 return r
             }

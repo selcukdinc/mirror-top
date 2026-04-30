@@ -26,14 +26,12 @@ public struct MenuBarContent: View {
             }
             
             Button(captureLabel) { triggerCapture() }
-                .keyboardShortcut("t", modifiers: [.command, .option])
                 .disabled(!permissions.allGranted)
             
             Button(interactionLabel) {
                 StreamManager.shared.toggleInteractionMode()
                 interactionMode = StreamManager.shared.interactionMode
             }
-            .keyboardShortcut("i", modifiers: [.command, .option])
             .disabled(!StreamManager.shared.isCapturing)
             
             Divider()
@@ -43,8 +41,8 @@ public struct MenuBarContent: View {
             Button(Strings.menuHelp) { showAbout() }
             
             Menu(Strings.menuShortcuts) {
-                Text("⌘⌥T   \(Strings.scToggleTitle)")
-                Text("⌘⌥I   \(Strings.scInteractionTitle)")
+                Text("\(SettingsManager.shared.captureShortcut.displayString)   \(Strings.scToggleTitle)")
+                Text("\(SettingsManager.shared.interactionShortcut.displayString)   \(Strings.scInteractionTitle)")
             }
             
             Divider()

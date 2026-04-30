@@ -17,6 +17,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         print(">>> [DEBUG] Uygulama başlatıldı.")
         
+        // Varsayılan: agent (LSUIElement). Pencere açılınca .regular'a geçeceğiz ki Cmd+Tab'da görünsün.
+        NSApp.setActivationPolicy(.accessory)
+        
         // Kısayolu erkenden kuruyoruz; izin yoksa zaten WindowManager nil döner.
         GlobalHotkeyManager.shared.registerHotkey()
         
@@ -88,8 +91,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.delegate = self
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
         self.onboardingWindow = window
+        updateActivationPolicy()
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     /// Hakkında / Yardım penceresini açar (zaten açıksa öne getirir).
@@ -115,8 +119,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.delegate = self
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
         self.aboutWindow = window
+        updateActivationPolicy()
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -125,6 +130,24 @@ extension AppDelegate: NSWindowDelegate {
         let w = notification.object as? NSWindow
         if w === onboardingWindow { onboardingWindow = nil }
         if w === aboutWindow { aboutWindow = nil }
+        updateActivationPolicy()
+    }
+    
+    /// Açık ayar/about/onboarding penceresi varsa Cmd+Tab'da görünebilmek için 
+    /// uygulamayı `.regular` aktivasyon politikasına geçirir; tüm pencereler
+    /// kapanınca tekrar `.accessory` (LSUIElement) modunda çalışmaya devam eder.
+    fileprivate func updateActivationPolicy() {
+        let hasVisibleWindow = (onboardingWindow != nil) || (aboutWindow != nil)
+        if hasVisibleWindow {
+            if NSApp.activationPolicy() != .regular {
+                NSApp.setActivationPolicy(.regular)
+            }
+        } else {
+            // Pencere kapandı; menü çubuğu uygulamasına geri dön.
+            DispatchQueue.main.async {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
     }
 }
 

@@ -2,33 +2,59 @@ import Foundation
 import Carbon
 import AppKit
 
+/// Carbon `RegisterEventHotKey` ile global kısayolları kaydeder.
+/// Kısayollar `SettingsManager` üzerinden okunur; kullanıcı değiştirirse `reloadShortcuts()` çağrılır.
 @MainActor
 public final class GlobalHotkeyManager {
     public static let shared = GlobalHotkeyManager()
     
     private var captureHotKeyRef: EventHotKeyRef?
     private var interactionHotKeyRef: EventHotKeyRef?
+    private var handlerInstalled = false
     
-    /// Kısayol tetiklendiğinde çalıştırılacak kapanış (closure)
+    /// Kısayollar tetiklendiğinde çalıştırılacak kapanışlar.
     public var onCaptureToggleTriggered: (() -> Void)?
     public var onInteractionToggleTriggered: (() -> Void)?
     
     private init() {}
     
-    /// Arka planda çalışırken genel (global) kısayolu (Cmd+Option+T) dinlemeye başlar.
+    /// İlk kayıt: handler'ı kur ve UserDefaults'tan okunan kısayolları aktive et.
     public func registerHotkey() {
-        var captureHotKeyID = EventHotKeyID()
-        captureHotKeyID.signature = OSType(fourCharCode: "ATOP")
-        captureHotKeyID.id = 1
+        installEventHandlerIfNeeded()
+        reloadShortcuts()
+    }
+    
+    /// Kullanıcı kısayolu değiştirdiğinde çağrılır. Eski kayıtları kaldırır, yenilerini kurar.
+    public func reloadShortcuts() {
+        if let ref = captureHotKeyRef {
+            UnregisterEventHotKey(ref)
+            captureHotKeyRef = nil
+        }
+        if let ref = interactionHotKeyRef {
+            UnregisterEventHotKey(ref)
+            interactionHotKeyRef = nil
+        }
         
-        var interactionHotKeyID = EventHotKeyID()
-        interactionHotKeyID.signature = OSType(fourCharCode: "AINT")
-        interactionHotKeyID.id = 2
+        let appTarget = GetApplicationEventTarget()
         
-        // Cmd(cmdKey) + Option(optionKey)
-        let modifierFlags: UInt32 = UInt32(cmdKey | optionKey)
-        let keyCodeT: UInt32 = 17 // T
-        let keyCodeI: UInt32 = 34 // I
+        let captureSC = SettingsManager.shared.captureShortcut
+        let interactionSC = SettingsManager.shared.interactionShortcut
+        
+        var captureID = EventHotKeyID()
+        captureID.signature = OSType(fourCharCode: "ATOP")
+        captureID.id = 1
+        RegisterEventHotKey(captureSC.keyCode, captureSC.modifiers, captureID, appTarget, 0, &captureHotKeyRef)
+        
+        var interactionID = EventHotKeyID()
+        interactionID.signature = OSType(fourCharCode: "AINT")
+        interactionID.id = 2
+        RegisterEventHotKey(interactionSC.keyCode, interactionSC.modifiers, interactionID, appTarget, 0, &interactionHotKeyRef)
+        
+        print(">>> [HotKey] Kısayollar güncellendi → capture: \(captureSC.displayString), interaction: \(interactionSC.displayString)")
+    }
+    
+    private func installEventHandlerIfNeeded() {
+        guard !handlerInstalled else { return }
         
         var eventType = EventTypeSpec()
         eventType.eventClass = OSType(kEventClassKeyboard)
@@ -36,17 +62,20 @@ public final class GlobalHotkeyManager {
         
         let appTarget = GetApplicationEventTarget()
         
-        // C tarzı handler fonksiyonu
-        let handler: EventHandlerUPP = { (nextHandler, theEvent, userData) -> OSStatus in
+        let handler: EventHandlerUPP = { (_, theEvent, _) -> OSStatus in
             var hotKeyID = EventHotKeyID()
-            GetEventParameter(theEvent, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
+            GetEventParameter(theEvent,
+                              EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID),
+                              nil,
+                              MemoryLayout<EventHotKeyID>.size,
+                              nil,
+                              &hotKeyID)
             
             Task { @MainActor in
                 if hotKeyID.id == 1 {
-                    print(">>> [DEBUG] Cmd+Option+T (Capture Toggle) algılandı!")
                     GlobalHotkeyManager.shared.onCaptureToggleTriggered?()
                 } else if hotKeyID.id == 2 {
-                    print(">>> [DEBUG] Cmd+Option+I (Interaction Toggle) algılandı!")
                     GlobalHotkeyManager.shared.onInteractionToggleTriggered?()
                 }
             }
@@ -54,10 +83,7 @@ public final class GlobalHotkeyManager {
         }
         
         InstallEventHandler(appTarget, handler, 1, &eventType, nil, nil)
-        
-        RegisterEventHotKey(keyCodeT, modifierFlags, captureHotKeyID, appTarget, 0, &captureHotKeyRef)
-        RegisterEventHotKey(keyCodeI, modifierFlags, interactionHotKeyID, appTarget, 0, &interactionHotKeyRef)
-        print(">>> [DEBUG] Cmd+Option+T ve Cmd+Option+I kısayolları kaydedildi.")
+        handlerInstalled = true
     }
 }
 
