@@ -10,11 +10,22 @@ public final class GlobalHotkeyManager {
     
     private var captureHotKeyRef: EventHotKeyRef?
     private var interactionHotKeyRef: EventHotKeyRef?
+    private var sizeSmallHotKeyRef: EventHotKeyRef?
+    private var sizeMediumHotKeyRef: EventHotKeyRef?
+    private var sizeLargeHotKeyRef: EventHotKeyRef?
     private var handlerInstalled = false
     
     /// Kısayollar tetiklendiğinde çalıştırılacak kapanışlar.
     public var onCaptureToggleTriggered: (() -> Void)?
     public var onInteractionToggleTriggered: (() -> Void)?
+    /// Boyut kısayolları (küçük/orta/büyük).
+    public var onSizePresetTriggered: ((SizePreset) -> Void)?
+    
+    public enum SizePreset {
+        case small   // ¼
+        case medium  // ½
+        case large   // 1:1 (kaynak pencerenin gerçek boyutu)
+    }
     
     private init() {}
     
@@ -34,6 +45,10 @@ public final class GlobalHotkeyManager {
             UnregisterEventHotKey(ref)
             interactionHotKeyRef = nil
         }
+        for refPtr in [sizeSmallHotKeyRef, sizeMediumHotKeyRef, sizeLargeHotKeyRef] {
+            if let ref = refPtr { UnregisterEventHotKey(ref) }
+        }
+        sizeSmallHotKeyRef = nil; sizeMediumHotKeyRef = nil; sizeLargeHotKeyRef = nil
         
         let appTarget = GetApplicationEventTarget()
         
@@ -50,7 +65,17 @@ public final class GlobalHotkeyManager {
         interactionID.id = 2
         RegisterEventHotKey(interactionSC.keyCode, interactionSC.modifiers, interactionID, appTarget, 0, &interactionHotKeyRef)
         
-        print(">>> [HotKey] Kısayollar güncellendi → capture: \(captureSC.displayString), interaction: \(interactionSC.displayString)")
+        // Boyut kısayolları (sabit, kullanıcı henüz özelleştiremiyor): Cmd+Opt+1/2/3.
+        let mods = UInt32(cmdKey | optionKey)
+        var sizeSmallID = EventHotKeyID(signature: OSType(fourCharCode: "ASZ1"), id: 4)
+        RegisterEventHotKey(UInt32(kVK_ANSI_1), mods, sizeSmallID, appTarget, 0, &sizeSmallHotKeyRef)
+        var sizeMediumID = EventHotKeyID(signature: OSType(fourCharCode: "ASZ2"), id: 5)
+        RegisterEventHotKey(UInt32(kVK_ANSI_2), mods, sizeMediumID, appTarget, 0, &sizeMediumHotKeyRef)
+        var sizeLargeID = EventHotKeyID(signature: OSType(fourCharCode: "ASZ3"), id: 6)
+        RegisterEventHotKey(UInt32(kVK_ANSI_3), mods, sizeLargeID, appTarget, 0, &sizeLargeHotKeyRef)
+        _ = (sizeSmallID, sizeMediumID, sizeLargeID) // suppress unused-mutated warning
+        
+        print(">>> [HotKey] Kısayollar güncellendi → capture: \(captureSC.displayString), interaction: \(interactionSC.displayString), size: ⌘⌥1/2/3")
     }
     
     private func installEventHandlerIfNeeded() {
@@ -77,6 +102,12 @@ public final class GlobalHotkeyManager {
                     GlobalHotkeyManager.shared.onCaptureToggleTriggered?()
                 } else if hotKeyID.id == 2 {
                     GlobalHotkeyManager.shared.onInteractionToggleTriggered?()
+                } else if hotKeyID.id == 4 {
+                    GlobalHotkeyManager.shared.onSizePresetTriggered?(.small)
+                } else if hotKeyID.id == 5 {
+                    GlobalHotkeyManager.shared.onSizePresetTriggered?(.medium)
+                } else if hotKeyID.id == 6 {
+                    GlobalHotkeyManager.shared.onSizePresetTriggered?(.large)
                 }
             }
             return noErr

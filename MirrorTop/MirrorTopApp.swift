@@ -13,6 +13,7 @@ import AppKit
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var dockModeWindow: NSWindow?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print(">>> [DEBUG] Uygulama başlatıldı.")
@@ -50,6 +51,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             StreamManager.shared.toggleInteractionMode()
         }
         
+        GlobalHotkeyManager.shared.onSizePresetTriggered = { preset in
+            StreamManager.shared.applyPresetSize(preset)
+        }
+        
         // İzin kontrolü → eksikse modern onboarding penceresi.
         PermissionsManager.shared.refresh()
         if !PermissionsManager.shared.allGranted {
@@ -65,13 +70,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Onboarding penceresini açar (zaten açıksa öne getirir).
     /// LSUIElement = YES olduğu için NSWindow'u manuel oluşturuyoruz.
     func showOnboarding() {
+        presentOnboarding(mode: .welcome)
+    }
+    
+    /// Menüden "İzinleri Yönet" seçildiğinde açılır — hoş geldin başlığı yerine sade
+    /// "İzinleri Yönet" başlığı gösterir.
+    func showPermissions() {
+        presentOnboarding(mode: .manage)
+    }
+    
+    private func presentOnboarding(mode: OnboardingView.Mode) {
         if let existing = onboardingWindow {
             existing.makeKeyAndOrderFront(nil)
+            existing.orderFrontRegardless()
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         
         let view = OnboardingView(
+            mode: mode,
             onContinue: { [weak self] in
                 self?.onboardingWindow?.close()
             },
@@ -90,10 +107,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isMovableByWindowBackground = true
         window.center()
         window.delegate = self
+        // Dock'ta ikon yok, başka uygulamaların pencerelerinin altında doğmasın diye
+        // önce activation politikasını .regular yap, sonra activate + orderFrontRegardless.
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         self.onboardingWindow = window
         updateActivationPolicy()
-        NSApp.activate(ignoringOtherApps: true)
     }
     
     /// Hakkında / Yardım penceresini açar (zaten açıksa öne getirir).
@@ -118,10 +141,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isMovableByWindowBackground = true
         window.center()
         window.delegate = self
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         self.aboutWindow = window
         updateActivationPolicy()
+    }
+}
+
+extension AppDelegate {
+    /// Dock-mode (tüm PiP'ler grid'i) penceresini açar.
+    func showDockMode() {
+        if let existing = dockModeWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let hosting = NSHostingController(rootView: DockModeView())
+        let window = NSWindow(contentViewController: hosting)
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.title = "Mirror Top — \(Strings.dockModeTitle)"
+        window.isReleasedWhenClosed = false
+        window.isMovableByWindowBackground = true
+        window.setContentSize(NSSize(width: 880, height: 560))
+        window.center()
+        window.delegate = self
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
         NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        self.dockModeWindow = window
+        updateActivationPolicy()
     }
 }
 
@@ -130,6 +187,7 @@ extension AppDelegate: NSWindowDelegate {
         let w = notification.object as? NSWindow
         if w === onboardingWindow { onboardingWindow = nil }
         if w === aboutWindow { aboutWindow = nil }
+        if w === dockModeWindow { dockModeWindow = nil }
         updateActivationPolicy()
     }
     
@@ -137,7 +195,7 @@ extension AppDelegate: NSWindowDelegate {
     /// uygulamayı `.regular` aktivasyon politikasına geçirir; tüm pencereler
     /// kapanınca tekrar `.accessory` (LSUIElement) modunda çalışmaya devam eder.
     fileprivate func updateActivationPolicy() {
-        let hasVisibleWindow = (onboardingWindow != nil) || (aboutWindow != nil)
+        let hasVisibleWindow = (onboardingWindow != nil) || (aboutWindow != nil) || (dockModeWindow != nil)
         if hasVisibleWindow {
             if NSApp.activationPolicy() != .regular {
                 NSApp.setActivationPolicy(.regular)
@@ -162,7 +220,9 @@ struct MirrorTopApp: App {
         MenuBarExtra {
             MenuBarContent(
                 showOnboarding: { appDelegate.showOnboarding() },
-                showAbout: { appDelegate.showAbout() }
+                showPermissions: { appDelegate.showPermissions() },
+                showAbout: { appDelegate.showAbout() },
+                showDockMode: { appDelegate.showDockMode() }
             )
             .environmentObject(permissions)
         } label: {

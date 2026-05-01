@@ -9,12 +9,18 @@ public struct MenuBarContent: View {
     @State private var interactionMode: Bool = StreamManager.shared.interactionMode
     
     public var showOnboarding: () -> Void
+    public var showPermissions: () -> Void
     public var showAbout: () -> Void
+    public var showDockMode: () -> Void
     
     public init(showOnboarding: @escaping () -> Void,
-                showAbout: @escaping () -> Void) {
+                showPermissions: @escaping () -> Void,
+                showAbout: @escaping () -> Void,
+                showDockMode: @escaping () -> Void = {}) {
         self.showOnboarding = showOnboarding
+        self.showPermissions = showPermissions
         self.showAbout = showAbout
+        self.showDockMode = showDockMode
     }
     
     public var body: some View {
@@ -36,7 +42,11 @@ public struct MenuBarContent: View {
             
             Divider()
             
-            Button(Strings.menuManagePerms) { showOnboarding() }
+            Button(Strings.dockModeOpen) { showDockMode() }
+            
+            Divider()
+            
+            Button(Strings.menuManagePerms) { showPermissions() }
             Button(Strings.menuSettings) { showAbout() }
             Button(Strings.menuHelp) { showAbout() }
             
@@ -64,7 +74,9 @@ public struct MenuBarContent: View {
     }
     
     private var interactionLabel: String {
-        StreamManager.shared.interactionMode ? Strings.menuInteractionOn : Strings.menuInteractionOff
+        let base = StreamManager.shared.interactionMode ? Strings.menuInteractionOn : Strings.menuInteractionOff
+        // "(Deneysel)" rozetini her durumda göster — kullanıcı sınırı bilsin.
+        return "\(base) — \(Strings.experimentalBadge)"
     }
     
     private func triggerCapture() {

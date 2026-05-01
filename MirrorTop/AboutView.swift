@@ -197,6 +197,41 @@ public struct AboutView: View {
                         title: Strings.scToggleTitle, desc: Strings.scToggleDesc)
             shortcutRow(keys: keyTokens(SettingsManager.shared.interactionShortcut),
                         title: Strings.scInteractionTitle, desc: Strings.scInteractionDesc)
+            
+            // Experimental uyarı bandı — etkileşim modunun sınırlarını netleştirir.
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "flask.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(Strings.experimentalBadge)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Color.orange.opacity(0.18)))
+                            .foregroundStyle(.orange)
+                    }
+                    Text(Strings.interactionExperimentalNote)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.25), lineWidth: 1))
+            
+            sectionTitle(Strings.scSizeTitle)
+            Text(Strings.scSizeDesc)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                shortcutRow(keys: ["⌘", "⌥", "1"], title: Strings.sizeSmall, desc: "")
+                shortcutRow(keys: ["⌘", "⌥", "2"], title: Strings.sizeMedium, desc: "")
+                shortcutRow(keys: ["⌘", "⌥", "3"], title: Strings.sizeLarge, desc: "")
+            }
+            
             sectionTitle(Strings.scTipsTitle)
             VStack(alignment: .leading, spacing: 10) {
                 bullet(Strings.scTip1)
@@ -384,6 +419,64 @@ private struct SettingsSection: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 380)
                 Text(Strings.settingsLanguageHint)
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            
+            Divider()
+            
+            // Görünüm
+            VStack(alignment: .leading, spacing: 12) {
+                Text(Strings.settingsAppearanceTitle).font(.headline)
+                
+                // Opaklık
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(Strings.settingsOpacity)
+                        Spacer()
+                        Text("\(Int(settings.opacity * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $settings.opacity, in: 0.2...1.0)
+                        .frame(maxWidth: 380)
+                    Text(Strings.settingsOpacityHint)
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                
+                // Hayalet modu
+                Toggle(Strings.settingsGhostMode, isOn: $settings.ghostMode)
+                Text(Strings.settingsGhostModeHint)
+                    .font(.callout).foregroundStyle(.secondary)
+                if settings.ghostMode {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(Strings.settingsGhostModeOpacity)
+                            Spacer()
+                            Text("\(Int(settings.ghostOpacity * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $settings.ghostOpacity, in: 0.1...0.9)
+                            .frame(maxWidth: 380)
+                    }
+                }
+                
+                // Etkileşim çerçevesi
+                Toggle(Strings.settingsBorderToggle, isOn: $settings.showInteractionBorder)
+                Text(Strings.settingsBorderToggleHint)
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            
+            Divider()
+            
+            // Davranış
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Strings.settingsBehaviorTitle).font(.headline)
+                Toggle(Strings.settingsSnapToCorners, isOn: $settings.snapToCorners)
+                Text(Strings.settingsSnapToCornersHint)
+                    .font(.callout).foregroundStyle(.secondary)
+                Toggle(Strings.settingsRememberPosition, isOn: $settings.rememberPositionPerWindow)
+                Text(Strings.settingsRememberPositionHint)
                     .font(.callout).foregroundStyle(.secondary)
             }
             

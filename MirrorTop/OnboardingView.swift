@@ -6,11 +6,21 @@ public struct OnboardingView: View {
     @ObservedObject private var permissions = PermissionsManager.shared
     @ObservedObject private var settings = SettingsManager.shared
     
+    /// `welcome`: ilk kurulumda gösterilen "Hoş Geldiniz" tonu.
+    /// `manage`:  zaten kurulu kullanıcının menüden açtığı sade "İzinleri Yönet" görünümü.
+    public enum Mode {
+        case welcome
+        case manage
+    }
+    
+    public var mode: Mode
     public var onContinue: () -> Void
     public var onShowHelp: (() -> Void)?
     
-    public init(onContinue: @escaping () -> Void,
+    public init(mode: Mode = .welcome,
+                onContinue: @escaping () -> Void,
                 onShowHelp: (() -> Void)? = nil) {
+        self.mode = mode
         self.onContinue = onContinue
         self.onShowHelp = onShowHelp
     }
@@ -52,12 +62,13 @@ public struct OnboardingView: View {
     private var header: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 12) {
-                Image(systemName: "rectangle.on.rectangle.angled")
-                    .font(.system(size: 44, weight: .light))
+                Image(systemName: mode == .welcome ? "rectangle.on.rectangle.angled" : "lock.shield")
+                    .font(.system(size: mode == .welcome ? 44 : 36, weight: .light))
                     .foregroundStyle(.tint)
                     .padding(.top, 24)
-                Text(Strings.onboardingTitle).font(.title2).bold()
-                Text(Strings.onboardingSubtitle)
+                Text(mode == .welcome ? Strings.onboardingTitle : Strings.permsManageTitle)
+                    .font(.title2).bold()
+                Text(mode == .welcome ? Strings.onboardingSubtitle : Strings.permsManageSubtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -90,8 +101,7 @@ public struct OnboardingView: View {
             }
             Spacer()
             Button { onContinue() } label: {
-                Text(permissions.allGranted ? Strings.start : Strings.later)
-                    .frame(minWidth: 90)
+                Text(closeButtonTitle).frame(minWidth: 90)
             }
             .keyboardShortcut(.defaultAction)
             .controlSize(.large)
@@ -99,6 +109,15 @@ public struct OnboardingView: View {
             .tint(permissions.allGranted ? .accentColor : .gray)
         }
         .padding(20)
+    }
+    
+    private var closeButtonTitle: String {
+        switch mode {
+        case .welcome:
+            return permissions.allGranted ? Strings.start : Strings.later
+        case .manage:
+            return Strings.done
+        }
     }
 }
 
