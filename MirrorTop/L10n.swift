@@ -300,15 +300,49 @@ public enum Strings {
         "Quickly resize the PiP. Ratios are relative to the source window.") }
     
     // Dock-mode (overview / grid)
-    public static var dockModeTitle: String              { L10n.tr("Tüm PiP'ler", "All PiPs") }
+    public static var dockModeTitle: String              { L10n.tr("Dock Uygulaması", "Dock") }
     public static var dockModeEmpty: String              { L10n.tr(
         "Şu an aktif PiP yok. Bir pencereyi PiP'lemek için ⌘⌥T kısayolunu kullanın.",
         "No active PiPs right now. Use ⌘⌥T to float the focused window as a PiP.") }
-    public static var dockModeOpen: String               { L10n.tr("Tüm PiP'leri Göster…", "Show All PiPs…") }
+    public static var dockModeOpen: String               { L10n.tr("Dock Uygulamasını Aç…", "Open Dock…") }
     public static var dockHover_configure: String        { L10n.tr("Ayarla", "Configure") }
     public static var dockHover_focus: String            { L10n.tr("Tek Başına Göster", "Bring to Front") }
     public static var dockHover_remove: String           { L10n.tr("Kaldır", "Remove") }
+    public static var dockHover_reactivate: String       { L10n.tr("Yeniden Aç", "Reactivate") }
     public static var dockHint: String                   { L10n.tr(
         "Trackpad ile pinch-zoom yaparak grid yoğunluğunu değiştirebilirsiniz.",
         "Pinch with trackpad to change grid density.") }
+    
+    // Dock-mode tabs
+    public static var dockTabPiPs: String                { L10n.tr("PiP'ler",      "PiPs") }
+    public static var dockTabTransparency: String        { L10n.tr("Saydamlık",    "Transparency") }
+    public static var dockTabAppearance: String          { L10n.tr("Tema",         "Theme") }
+    public static var dockTabSettings: String            { L10n.tr("Ayarlar",      "Settings") }
+    public static var dockTabAbout: String               { L10n.tr("Hakkında",     "About") }
+    
+    // Theme picker
+    public static var themeTitle: String                 { L10n.tr("Tema Seçimi", "Theme") }
+    public static var themeHint: String                  { L10n.tr(
+        "Uygulama arayüzü ve PiP pencereleri seçtiğiniz temaya göre renklenir.",
+        "App UI and PiP panels follow the chosen theme colors.") }
+    
+    // Transparency
+    public static var transparencyMasterTitle: String    { L10n.tr("Ana Saydamlık (Master)", "Master Transparency") }
+    public static var transparencyMasterHint: String     { L10n.tr(
+        "Yeni açılan PiP'ler için varsayılan saydamlıktır.",
+        "Default transparency applied to new PiP windows.") }
+    public static var transparencyOverrideAll: String    { L10n.tr(
+        "Tüm pencerelerin özel saydamlık değerlerini bu değerle ezer",
+        "Override every window's custom transparency with this value") }
+    public static var transparencyApplyToAll: String     { L10n.tr("Tüm Pencerelere Uygula", "Apply to All Windows") }
+    public static var transparencyOverrideDone: String   { L10n.tr("Uygulandı.", "Applied.") }
+    public static var transparencyActiveTitle: String    { L10n.tr("Aktif PiP'ler", "Active PiPs") }
+    public static var transparencyEmpty: String          { L10n.tr(
+        "Aktif PiP yok. Bir pencereyi PiP'lediğinizde burada ayrı bir saydamlık denetimi göreceksiniz.",
+        "No active PiPs. Once you mirror a window, its transparency control appears here.") }
+    public static var transparencyResetWindow: String    { L10n.tr("Sıfırla", "Reset") }
+    
+    // Menu — transparency
+    public static var menuTransparency: String           { L10n.tr("Saydamlık", "Transparency") }
+    public static var menuOpenDockApp: String            { L10n.tr("Dock Uygulamasını Aç…", "Open Dock App…") }
 }

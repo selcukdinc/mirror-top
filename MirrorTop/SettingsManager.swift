@@ -6,6 +6,59 @@ import AppKit
 public extension Notification.Name {
     /// Görünüm ayarları (opacity, ghostMode, border) değiştiğinde post edilir.
     static let mtAppearanceChanged = Notification.Name("mt.appearanceChanged")
+    /// Tema değiştiğinde post edilir.
+    static let mtThemeChanged = Notification.Name("mt.themeChanged")
+}
+
+// MARK: - Theme
+
+/// Uygulama teması. 4 seçenek: Sistem-takibi (Light/Dark) yerine kullanıcıya
+/// 4 sabit tema sunuyoruz: classic (light), midnight (dark), ocean, sunset.
+public enum AppTheme: String, CaseIterable, Identifiable, Codable {
+    case classic   // Aydınlık (Klasik)
+    case midnight  // Karanlık (Gece)
+    case ocean     // Özel: Okyanus
+    case sunset    // Özel: Gün Batımı
+    
+    public var id: String { rawValue }
+    
+    @MainActor
+    public var displayName: String {
+        switch self {
+        case .classic:  return L10n.tr("Klasik (Aydınlık)", "Classic (Light)")
+        case .midnight: return L10n.tr("Gece (Karanlık)",   "Midnight (Dark)")
+        case .ocean:    return L10n.tr("Okyanus",           "Ocean")
+        case .sunset:   return L10n.tr("Gün Batımı",        "Sunset")
+        }
+    }
+    
+    /// SwiftUI `preferredColorScheme` için tercih edilen şema.
+    public var colorScheme: ColorScheme? {
+        switch self {
+        case .classic, .ocean:     return .light
+        case .midnight, .sunset:   return .dark
+        }
+    }
+    
+    /// Tema accent rengi (Color).
+    public var accent: Color {
+        switch self {
+        case .classic:  return .accentColor
+        case .midnight: return Color(red: 0.55, green: 0.65, blue: 1.0)
+        case .ocean:    return Color(red: 0.10, green: 0.55, blue: 0.85)
+        case .sunset:   return Color(red: 0.95, green: 0.45, blue: 0.30)
+        }
+    }
+    
+    /// Sembol ikonu — tema seçici grid'inde gösterim için.
+    public var symbol: String {
+        switch self {
+        case .classic:  return "sun.max.fill"
+        case .midnight: return "moon.stars.fill"
+        case .ocean:    return "drop.fill"
+        case .sunset:   return "sunset.fill"
+        }
+    }
 }
 
 /// Kullanıcı tercihlerini saklayan merkezi yönetici (UserDefaults).
@@ -25,12 +78,19 @@ public final class SettingsManager: ObservableObject {
         static let ghostMode = "mt.settings.ghostMode"
         static let ghostOpacity = "mt.settings.ghostOpacity"
         static let showInteractionBorder = "mt.settings.showInteractionBorder"
+        // Tema
+        static let theme = "mt.settings.theme"
         // Davranış
         static let snapToCorners = "mt.settings.snapToCorners"
         static let rememberPositionPerWindow = "mt.settings.rememberPositionPerWindow"
         // Per-window pozisyon kaydı (UserDefaults: dictionary frame string)
         static func windowFrameKey(bundleID: String, titleHash: String) -> String {
             return "mt.layout.window.\(bundleID).\(titleHash)"
+        }
+        /// Per-window opaklık override prefix'i (silmek için)
+        static let perWindowOpacityPrefix = "mt.opacity.window."
+        static func windowOpacityKey(bundleID: String, titleHash: String) -> String {
+            return "\(perWindowOpacityPrefix)\(bundleID).\(titleHash)"
         }
     }
     
@@ -118,6 +178,14 @@ public final class SettingsManager: ObservableObject {
         didSet { UserDefaults.standard.set(rememberPositionPerWindow, forKey: Keys.rememberPositionPerWindow) }
     }
     
+    /// Uygulama teması (4 sabit tema). Değiştiğinde pencereler `preferredColorScheme`'i takip eder.
+    @Published public var theme: AppTheme {
+        didSet {
+            UserDefaults.standard.set(theme.rawValue, forKey: Keys.theme)
+            NotificationCenter.default.post(name: .mtThemeChanged, object: nil)
+        }
+    }
+    
     private init() {
         let defaults = UserDefaults.standard
         if let raw = defaults.string(forKey: Keys.language),
@@ -138,6 +206,12 @@ public final class SettingsManager: ObservableObject {
         // Davranış
         self.snapToCorners            = defaults.object(forKey: Keys.snapToCorners) as? Bool ?? true
         self.rememberPositionPerWindow = defaults.object(forKey: Keys.rememberPositionPerWindow) as? Bool ?? true
+        // Tema
+        if let raw = defaults.string(forKey: Keys.theme), let t = AppTheme(rawValue: raw) {
+            self.theme = t
+        } else {
+            self.theme = .classic
+        }
     }
     
     /// Kısayolları varsayılana sıfırla.
@@ -161,6 +235,38 @@ public final class SettingsManager: ObservableObject {
         guard rememberPositionPerWindow else { return }
         let key = Keys.windowFrameKey(bundleID: bundleID, titleHash: titleHash)
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: key)
+    }
+    
+    // MARK: - Per-window opacity override
+    
+    /// Verilen pencere için kayıtlı opaklık override'ı (yoksa nil → genel opacity kullanılır).
+    public func windowOpacity(forBundleID bundleID: String, titleHash: String) -> Double? {
+        let key = Keys.windowOpacityKey(bundleID: bundleID, titleHash: titleHash)
+        guard let v = UserDefaults.standard.object(forKey: key) as? Double else { return nil }
+        return v
+    }
+    
+    public func saveWindowOpacity(_ opacity: Double, forBundleID bundleID: String, titleHash: String) {
+        let key = Keys.windowOpacityKey(bundleID: bundleID, titleHash: titleHash)
+        UserDefaults.standard.set(opacity, forKey: key)
+        NotificationCenter.default.post(name: .mtAppearanceChanged, object: nil)
+    }
+    
+    public func clearWindowOpacity(forBundleID bundleID: String, titleHash: String) {
+        let key = Keys.windowOpacityKey(bundleID: bundleID, titleHash: titleHash)
+        UserDefaults.standard.removeObject(forKey: key)
+        NotificationCenter.default.post(name: .mtAppearanceChanged, object: nil)
+    }
+    
+    /// Tüm per-window opaklık override'larını temizler. Master opacity ayarını
+    /// "tüm pencerelere uygula" amaçlı kullanır.
+    public func clearAllWindowOpacityOverrides() {
+        let defaults = UserDefaults.standard
+        let prefix = Keys.perWindowOpacityPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+        NotificationCenter.default.post(name: .mtAppearanceChanged, object: nil)
     }
     
     // MARK: - Helpers

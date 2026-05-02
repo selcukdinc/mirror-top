@@ -121,4 +121,42 @@ public final class WindowManager {
             appName: frontmostApp.localizedName ?? "Bilinmeyen"
         )
     }
+    
+    /// Kayıtlı bir PiP'i (Dock-mode'da) yeniden başlatmak için kullanılır.
+    /// Aynı bundleID ve title ile (PID değişmiş olabilir) eşleşen pencereyi bulur.
+    /// Title eşleşmiyorsa o uygulamanın ilk standart penceresine fallback eder.
+    public func findWindow(bundleID: String, title: String) async throws -> FocusedWindowInfo? {
+        // Uygulama hâlâ çalışıyor mu?
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+            print(">>> [WindowManager] Hedef uygulama (\(bundleID)) çalışmıyor.")
+            return nil
+        }
+        let pid = app.processIdentifier
+        
+        let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        // Önce PID + tam title eşleşmesi ara.
+        var match = shareableContent.windows.first(where: {
+            $0.owningApplication?.processID == pid && $0.title == title
+        })
+        // Eğer bulunamazsa: aynı uygulamanın ilk standart penceresine fallback.
+        if match == nil {
+            match = shareableContent.windows.first(where: {
+                $0.owningApplication?.processID == pid &&
+                ($0.title?.isEmpty == false) &&
+                $0.frame.width > 100 && $0.frame.height > 100
+            })
+        }
+        guard let scWindow = match else {
+            print(">>> [WindowManager] Reaktivasyon: \(bundleID) için pencere bulunamadı.")
+            return nil
+        }
+        let resolvedTitle = scWindow.title ?? title
+        return FocusedWindowInfo(
+            cgWindowID: scWindow.windowID,
+            title: resolvedTitle,
+            frame: scWindow.frame,
+            pid: pid,
+            appName: app.localizedName ?? bundleID
+        )
+    }
 }

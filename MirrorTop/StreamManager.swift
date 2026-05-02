@@ -179,6 +179,31 @@ public final class StreamManager: NSObject, Sendable {
         activePanel?.orderFrontRegardless()
     }
     
+    /// Dock-mode'dan: kapatılmış bir mirror'ı kayıtlı pencere bilgisi ile yeniden başlatır.
+    /// Pencere bulunamazsa false döner.
+    @discardableResult
+    public func reactivate(bundleID: String, title: String) async -> Bool {
+        do {
+            // Aynı pencere zaten aktifse onu öne getir.
+            if let info = self.originalWindowInfo,
+               let app = NSRunningApplication(processIdentifier: info.pid),
+               app.bundleIdentifier == bundleID, info.title == title {
+                bringActivePanelToFront()
+                return true
+            }
+            // Önceki yayın varsa kapat (farklı pencere).
+            if isCapturing { await stopCapture() }
+            guard let info = try await WindowManager.shared.findWindow(bundleID: bundleID, title: title) else {
+                return false
+            }
+            try await startCapture(for: info)
+            return true
+        } catch {
+            print(">>> [StreamManager] reactivate hatası: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
     /// Yayını güvenli bir şekilde durdurur ve paneli kapatarak bellek sızıntılarını önler.
     public func stopCapture() async {
         // Registry'ye inactive olarak işaretle (Dock-mode geçmişte tutmaya devam eder).
@@ -312,14 +337,44 @@ public final class StreamManager: NSObject, Sendable {
     private func applyAppearance() {
         guard let panel = activePanel else { return }
         let s = SettingsManager.shared
-        // Hayalet modu aktif + biz front değil isek ghostOpacity, aksi halde ana opacity.
+        // Per-window override (varsa) genel opacity'yi ezer.
+        let baseOpacity: Double = {
+            if let info = self.originalWindowInfo, let key = persistKey(for: info),
+               let override = s.windowOpacity(forBundleID: key.bundleID, titleHash: key.titleHash) {
+                return override
+            }
+            return s.opacity
+        }()
+        // Hayalet modu aktif + biz front değil isek ghostOpacity, aksi halde baseOpacity.
         let isFront = NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
         if s.ghostMode && !isFront {
             panel.alphaValue = CGFloat(s.ghostOpacity)
         } else {
-            panel.alphaValue = CGFloat(s.opacity)
+            panel.alphaValue = CGFloat(baseOpacity)
         }
         previewView?.showInteractionBorder = s.showInteractionBorder
+    }
+    
+    /// Aktif PiP panelinin opaklığını canlı değiştirir ve per-window override'ı kaydeder.
+    /// Menü çubuğu ve Dock-mode tarafından kullanılır.
+    public func setActivePanelOpacity(_ value: Double) {
+        guard let info = self.originalWindowInfo, let key = persistKey(for: info) else { return }
+        SettingsManager.shared.saveWindowOpacity(value,
+                                                 forBundleID: key.bundleID,
+                                                 titleHash: key.titleHash)
+        applyAppearance()
+    }
+    
+    /// Aktif pencere için kayıtlı per-window opaklık override'ı (varsa) — menü slider'ı için.
+    public func activePanelOpacity() -> Double? {
+        guard let info = self.originalWindowInfo, let key = persistKey(for: info) else { return nil }
+        return SettingsManager.shared.windowOpacity(forBundleID: key.bundleID, titleHash: key.titleHash)
+    }
+    
+    /// Aktif PiP'in tanımlayıcı bilgileri (menü/dock UI için).
+    public var activeMirrorIdentity: (bundleID: String, title: String, appName: String)? {
+        guard let info = self.originalWindowInfo, let key = persistKey(for: info) else { return nil }
+        return (key.bundleID, info.title, info.appName)
     }
     
     @objc private func activeAppChanged() {

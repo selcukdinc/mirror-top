@@ -8,6 +8,20 @@
 import SwiftUI
 import AppKit
 
+/// Tema (renk şeması + accent) uygulayan SwiftUI sarmalayıcısı. AboutView, Onboarding
+/// gibi mevcut görünümlerin tek noktadan tema almasını sağlar.
+private struct ThemedRoot<Content: View>: View {
+    @ObservedObject private var settings = SettingsManager.shared
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View {
+        content
+            .preferredColorScheme(settings.theme.colorScheme)
+            .tint(settings.theme.accent)
+            .id(settings.theme.rawValue)
+    }
+}
+
 // MARK: - App Delegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -97,7 +111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         
-        let hosting = NSHostingController(rootView: view)
+        let hosting = NSHostingController(rootView: ThemedRoot { view })
         let window = NSWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
@@ -131,7 +145,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.aboutWindow?.close()
         }
         
-        let hosting = NSHostingController(rootView: view)
+        let hosting = NSHostingController(rootView: ThemedRoot { view })
         let window = NSWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
@@ -160,7 +174,11 @@ extension AppDelegate {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        let hosting = NSHostingController(rootView: DockModeView())
+        let view = DockModeView(
+            openAbout: { [weak self] in self?.showAbout() },
+            openPermissions: { [weak self] in self?.showPermissions() }
+        )
+        let hosting = NSHostingController(rootView: ThemedRoot { view })
         let window = NSWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
@@ -168,7 +186,7 @@ extension AppDelegate {
         window.title = "Mirror Top — \(Strings.dockModeTitle)"
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
-        window.setContentSize(NSSize(width: 880, height: 560))
+        window.setContentSize(NSSize(width: 920, height: 600))
         window.center()
         window.delegate = self
         if NSApp.activationPolicy() != .regular {

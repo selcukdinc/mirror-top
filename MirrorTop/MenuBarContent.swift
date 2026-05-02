@@ -42,7 +42,9 @@ public struct MenuBarContent: View {
             
             Divider()
             
-            Button(Strings.dockModeOpen) { showDockMode() }
+            Button(Strings.menuOpenDockApp) { showDockMode() }
+            
+            transparencyMenu
             
             Divider()
             
@@ -89,6 +91,22 @@ public struct MenuBarContent: View {
             } catch {
                 print(">>> [MenuBar] HATA: \(error)")
             }
+        }
+    }
+    
+    /// Aktif PiP varsa hızlı saydamlık seçimi sunar; yoksa Dock Uygulaması'na yönlendirir.
+    @ViewBuilder
+    private var transparencyMenu: some View {
+        Menu(Strings.menuTransparency) {
+            if StreamManager.shared.isCapturing {
+                ForEach([1.0, 0.85, 0.7, 0.55, 0.4, 0.25], id: \.self) { v in
+                    Button("\(Int(v * 100))%") {
+                        StreamManager.shared.setActivePanelOpacity(v)
+                    }
+                }
+                Divider()
+            }
+            Button(Strings.menuOpenDockApp) { showDockMode() }
         }
     }
 }

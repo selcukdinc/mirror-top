@@ -138,8 +138,9 @@ public final class CapturePreviewView: NSView {
                 forwardMouse(event, type: .leftMouseUp, button: .left, viaCghid: false)
                 isDragging = false
             } else {
-                // SAF CLICK → atomik down+up cghidEventTap, sonra cursor'ı geri warp.
-                forwardClickAtomic(event, button: .left)
+                // SAF CLICK → postToPid ile atomik down+up; cursor warp YOK.
+                // Kullanıcı tercihi: hiçbir koşulda fare hedef pencereye ışınlanmasın.
+                forwardClickPost(event, button: .left)
             }
         } else {
             super.mouseUp(with: event)
@@ -166,8 +167,8 @@ public final class CapturePreviewView: NSView {
     
     public override func rightMouseDown(with event: NSEvent) {
         if interactionMode {
-            // Sağ tık genelde menü açar; click davranışı yeterli, atomik gönder.
-            forwardClickAtomic(event, button: .right)
+            // Sağ tık: postToPid ile cursor warp etmeden gönder.
+            forwardClickPost(event, button: .right)
         } else {
             super.rightMouseDown(with: event)
         }
@@ -221,6 +222,31 @@ public final class CapturePreviewView: NSView {
         let ny = max(0, min(1, 1.0 - (localLocation.y / viewSize.height)))
         return CGPoint(x: winFrame.minX + nx * winFrame.width,
                        y: winFrame.minY + ny * winFrame.height)
+    }
+    
+    /// Saf click: cursor'u HİÇBİR ŞEKİLDE warp ETMEDEN postToPid ile down+up gönderir.
+    /// Trade-off: NSPopUpButton/NSToolbar gibi global event tap bekleyen kontroller ile
+    /// uyumluluk azalabilir. Kullanıcı tercihi gereği fare hareket etmemelidir.
+    private func forwardClickPost(_ event: NSEvent, button: CGMouseButton) {
+        guard originalPID > 0, let target = screenTarget(for: event) else { return }
+        let downType: CGEventType = (button == .right) ? .rightMouseDown : .leftMouseDown
+        let upType:   CGEventType = (button == .right) ? .rightMouseUp   : .leftMouseUp
+        let clickCount = Int64(max(event.clickCount, 1))
+        
+        if let down = CGEvent(mouseEventSource: Self.eventSource,
+                              mouseType: downType,
+                              mouseCursorPosition: target,
+                              mouseButton: button) {
+            down.setIntegerValueField(.mouseEventClickState, value: clickCount)
+            down.postToPid(originalPID)
+        }
+        if let up = CGEvent(mouseEventSource: Self.eventSource,
+                            mouseType: upType,
+                            mouseCursorPosition: target,
+                            mouseButton: button) {
+            up.setIntegerValueField(.mouseEventClickState, value: clickCount)
+            up.postToPid(originalPID)
+        }
     }
     
     /// Saf click: cghidEventTap ile atomik mouseDown+mouseUp, sonra cursor'ı orijinal
@@ -285,8 +311,9 @@ public final class CapturePreviewView: NSView {
     
     private func forwardScroll(_ event: NSEvent) {
         guard originalPID > 0 else { return }
-        // Scroll event'i CGEvent içinde location field'ı taşır ama cursor warp etmez.
-        // NSScrollView "hangi view scroll alıyor" kararını event'in koordinatına göre verir.
+        // Scroll'da cursor warp olmaması için postToPid kullanıyoruz.
+        // Trade-off: hover-only scroll trackerlar (örn. macOS sistem genelinde scroll
+        // yakalayan bazı görünümler) bu event'i görmeyebilir. Kullanıcı tercihi gereği.
         guard let target = screenTargetForScroll(event) else { return }
         let dy = Int32(event.scrollingDeltaY)
         let dx = Int32(event.scrollingDeltaX)
@@ -296,10 +323,8 @@ public final class CapturePreviewView: NSView {
                                     wheel1: dy,
                                     wheel2: dx,
                                     wheel3: 0) else { return }
-        // Event'e hedef koordinatı yaz; sistem genel post — NSScrollView active-app şartı
-        // aramadan işler.
         cgEvent.location = target
-        cgEvent.post(tap: .cghidEventTap)
+        cgEvent.postToPid(originalPID)
     }
     
     private func screenTargetForScroll(_ event: NSEvent) -> CGPoint? {
